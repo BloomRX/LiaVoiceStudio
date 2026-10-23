@@ -98,8 +98,10 @@ A RX 580 é **Polaris 20, `gfx803`**. Isso fecha três portas de uma vez:
   `HSA_OVERRIDE_GFX_VERSION`.
 - **~4 GB de VRAM** ficam abaixo do piso de 6 GB do OmniVoice.
 
-**Vulkan funciona** nesta placa (loader 1.3.250 respondeu). Mas o único motor
-Vulkan só fala inglês e chinês.
+**Vulkan funciona** nesta placa (loader 1.3.250 respondeu). Mas o único motor que
+o app expõe por Vulkan — `audio.cpp` rodando Breeze-TTS-2 — só fala inglês e
+chinês. *(Existe uma exceção que eu não testei; ver a ressalva ao fim desta
+seção.)*
 
 O app **confirmou isso na própria tela de verificação**, depois de instalado:
 
@@ -112,9 +114,19 @@ Não é inferência da análise estática: é o `gpu_routing_verdict()` do app s
 esta máquina. Captura e transcrição em
 [`evidence/install/README.md`](evidence/install/README.md).
 
-Portanto, para *esta* máquina, a pergunta "Vulkan é mais rápido?" é irrelevante
-para português: o único caminho que fala pt-BR é o **Ryzen em CPU**. Detalhe em
-`environment.md` §4.
+Para *esta* máquina, no motor **padrão**, o caminho em português é o Ryzen em
+CPU. Detalhe em `environment.md` §4.
+
+> **Ressalva que eu devo a este relatório:** dizer "não existe caminho de GPU
+> para português" era forte demais. Há uma porta que eu não testei: o motor
+> `omnivoice-gguf`, que roda `omnivoice.cpp` (GGML) e, segundo o próprio
+> docstring, *"statically links GGML/GGML-cpu and dlopens GGML-cuda /
+> **GGML-vulkan** when present"*. É o mesmo mecanismo que faz o Qwen rodar em
+> Vulkan nesta placa. Nada dele está ligado pela interface — Vulkan não consta
+> do `gpu_compat`, o wrapper não passa `-ngl` —, então **não é promessa, é a
+> medição que falta**. O quant que ele escolheria sem CUDA/MPS (Q4_K_M, ~659 MB)
+> cabe nos ~4 GB da placa, ao contrário do piso de 6 GB do modelo em PyTorch.
+> Ver `test-matrix.md` §5.2.
 
 ### 2.4 A primeira geração real: RTF ≈ 40 em CPU
 

@@ -98,8 +98,9 @@ O próprio `model_licenses.json` registra, para `k2-fsa/OmniVoice`:
 `review_status: noncommercial`, `commercial_inference: restricted`,
 `commercial_outputs: unknown`.
 
-**Confirmado em runtime (não apenas em documento):** ao tentar gerar áudio, a
-API recusa e exige **duas** aceitações separadas:
+**Confirmado em runtime (não apenas em documento):** numa build mais nova que a
+v0.5.6 (o drop usado no laboratório), ao tentar gerar áudio a API recusa e exige
+**duas** aceitações separadas:
 
 ```json
 HTTP 403  {"code":"model_licence_required","models":[
@@ -112,6 +113,34 @@ HTTP 403  {"code":"model_licence_required","models":[
 Ou seja: o tokenizador **não** é uma nota de rodapé jurídica — é um segundo
 portão técnico que bloqueia a geração até ser aceito. E ele está classificado
 como `unknown`, não como permissivo.
+
+**Ressalva medida na v0.5.6 (a versão instalada na máquina-alvo):** esse gate
+**não existe**. `backend/api/routers/model_licenses.py` não está na versão,
+`generation.py` não chama `ensure_engine_licence`, e a geração real devolveu
+**HTTP 200** sem nenhum aceite registrado. Na 0.5.6 há apenas um booleano por
+motor (`GET/POST /settings/license`, `settings_store`), que **não bloqueia
+nada**. O risco jurídico é o mesmo; o bloqueio técnico, não.
+
+### 3.1.1 OmniVoice-GGUF: um "Apache-2.0" que não fecha
+
+O motor `omnivoice-gguf` distribui o mesmo modelo por outro runtime. O README
+dele afirma:
+
+> Model weights (`Serveurperso/OmniVoice-GGUF`): **Apache-2.0**. Same license as
+> the upstream `k2-fsa/OmniVoice` it derives from.
+
+Isso **contradiz** o card do modelo original, que declara os pesos como
+**CC-BY-NC**. Duas observações:
+
+1. A afirmação "same license as upstream" está factualmente errada — o upstream
+   é CC-BY-NC, não Apache-2.0.
+2. Um terceiro **não pode relicensear** pesos derivados de um modelo CC-BY-NC.
+   A restrição NC acompanha o derivado.
+
+**Conclusão:** tratar o OmniVoice-GGUF como Apache-2.0 seria apostar contra a
+licença do modelo de origem. Para uso comercial, o GGUF herda o problema, não o
+resolve. **Não usar essa alegação como base para decisão** sem parecer jurídico
+e sem checar o card real no Hugging Face (inacessível deste sandbox).
 
 **`commercial_outputs: unknown` é o dado mais desconfortável.** A CC-BY-NC
 restringe o uso do *modelo*; se o áudio gerado herda a restrição é uma questão

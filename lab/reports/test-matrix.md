@@ -271,6 +271,22 @@ modelo em cache, e comparar a execução 1 com as seguintes.
 
 ### 5.2 O que ainda não se sabe (e só a máquina real responde)
 
+- **OmniVoice GGUF em Vulkan** — a hipótese mais promissora e ainda não testada.
+  O motor `omnivoice-gguf` roda `omnivoice.cpp` (GGML), e o docstring do próprio
+  backend diz que o binário *"statically links GGML/GGML-cpu and dlopens
+  GGML-cuda / GGML-vulkan when present"*. Ou seja: o mesmo truque que faz Qwen
+  rodar em Vulkan **poderia** valer para português aqui. O que falta:
+  1. o motor declara `gpu_compat = ("cuda", "mps", "cpu")` — **Vulkan não está
+     declarado**;
+  2. o wrapper nunca passa `-ngl`/device nenhum no argv;
+  3. o binário Windows é distribuído sem `bin/` no repositório (placeholders de
+     zero byte), então **não se sabe** se ele inclui o backend Vulkan;
+  4. o `quant_map` escolhe Q4_K_M (~659 MB no total) em host sem CUDA/MPS — o
+     que **cabe** nos ~4 GB da RX 580, ao contrário do piso de 6 GB do modelo em
+     PyTorch.
+  Teste: instalar os pesos do `omnivoice-gguf`, gerar uma frase e ler o stderr do
+  `omnivoice-tts` (ele reporta o backend escolhido). Se disser CPU, verificar se
+  existe `ggml-vulkan.dll` ao lado do executável.
 - Se a Radeon específica do usuário expõe um dispositivo Vulkan discreto que o
   `audiocpp_server` reconhece.
 - Se o Vulkan do Windows nessa máquina é mais rápido que CPU — **não pode ser
