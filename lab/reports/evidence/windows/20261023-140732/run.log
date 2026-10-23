@@ -1,0 +1,64 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261023140732
+Nome de Usuário: LUCASPC\lucas
+Executar como Usuário: LUCASPC\lucas
+Nome da Configuração: 
+Computador: LUCASPC (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -File J:\LiaVoiceStudio\lab\tools\collect-windows.ps1
+ID do Processo: 18992
+PSVersion: 5.1.26100.9711
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9711
+BuildVersion: 10.0.26100.9711
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+================================================================
+ VoiceStudio Lab - coleta para Windows + AMD
+ Versao do coletor: 1.0.0
+ Inicio: 2026-10-23 14:07:32
+ Saida:  J:\LiaVoiceStudio\lab\reports\evidence\windows\20261023-140732
+================================================================
+ Modo: RAPIDO (ambiente + API + 1 frase)
+
+[1/7] Verificando pre-requisitos
+     PowerShell 5.1.26100.9711
+     OK    curl disponivel (curl.exe)
+     OK    git 2.52.0.windows.1
+     OK    repositorio git, branch 'arena/e6163ffc-liavoicestudio'
+
+[2/7] Coletando hardware e sistema
+     OK    Microsoft Windows 11 Home build 26200 (64 bits)
+     OK    CPU: AMD Ryzen 5 5500 (6C/12T, AMD)
+     OK    GPU: Parsec Virtual Display Adapter (driver 0.45.0.0)
+     OK    GPU: AMD Radeon RX 580 2048SP (driver 31.0.21925.1001)
+     C: 203.7 GB livres de 475.9 GB
+     D: 153.1 GB livres de 465.8 GB
+     F: 29 GB livres de 83.8 GB
+     G: 5.2 GB livres de 15 GB
+     J: 112.1 GB livres de 447.1 GB
+     OK    vulkaninfo encontrado; resumo salvo
+     OK    Unidade J: presente
+
+[3/7] Procurando a instalacao do VoiceStudio
+     nenhum diretorio padrao encontrado (pode estar em outro drive)
+     nenhum processo VoiceStudio/python rodando
+     porta 3900 nao esta escutando (app fechado?)
+
+[4/7] Sondando a API local
+PS>TerminatingError(Invoke-RestMethod): "Impossível conectar-se ao servidor remoto"
+     AVISO API nao respondeu em http://127.0.0.1:3900. Abra o VoiceStudio e rode de novo para as fases C/D.
+
+[5/7] Geracao de voz (corpus pt-BR)
+     AVISO API indisponivel - geracao pulada
+
+[6/7] Escrevendo o resumo
+     OK    summary.md escrito
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261023140737
+**********************
