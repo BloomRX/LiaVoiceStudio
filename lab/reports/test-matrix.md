@@ -240,14 +240,31 @@ PyTorch — nem no Windows, nem no Linux.
 | `X-Gen-Time` (servidor) | 40,32 s |
 | **RTF** | **39,9** |
 
-**Como ler isso:** RTF ≈ 40 significa **40 s de processamento por segundo de
-áudio**. Uma frase de 10 s levaria ~6,6 min. Isso torna inviável qualquer uso
-conversacional nesta máquina.
+Segunda execução, mesma frase, app reiniciado pelo script
+(`evidence/windows/20261023-145020/`):
 
-**Ressalva obrigatória:** é a **primeira** geração do processo e inclui a carga
-dos pesos do OmniVoice (2,4 GB). O protocolo exige a primeira execução separada
-justamente por isso — este número **não** é o RTF de regime. A medição válida
-sai das execuções 2+ do modo `/voice` (10 frases) ou `/full` (4× C7).
+| Métrica | Valor |
+|---|---|
+| HTTP | 200 |
+| tempo de parede | 173,35 s |
+| duração do áudio | 1,09 s |
+| `X-Gen-Time` | 172,74 s |
+| **RTF** | **158,5** |
+
+**Como ler isso:** RTF entre 40 e 158 significa **40 a 158 s de processamento
+por segundo de áudio**. Uma frase de 10 s levaria de 6,6 a 26 min.
+
+**Ressalva obrigatória:** as duas são a **primeira** geração de um processo
+recém-aberto e incluem a carga dos pesos (2,4 GB). O protocolo manda separar a
+primeira execução por isso. **A dispersão de 4× entre duas execuções "iguais"
+mostra que esse número não mede o motor — mede o carregamento.** O candidato mais
+provável é cache de página: na coleta 144336 os pesos tinham acabado de ser
+gravados no disco (quente no cache do SO); na 145020 o app foi reaberto e o
+cache já não estava lá.
+
+Por isso: **cada execução do `.bat` com o app fechado custa um carregamento
+frio**. A medição válida sai das execuções 2+ dentro da mesma sessão — modo
+`/voice` (10 frases) ou `/full` (4× C7).
 
 O app confirma o que a análise estática previa: `gpu_routing` = `omnivoice — cpu
 (no accelerator on this host)`. Não há GPU no caminho.

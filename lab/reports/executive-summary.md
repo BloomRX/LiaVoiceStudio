@@ -143,11 +143,19 @@ Em 2026-10-23 14:44 a máquina-alvo gerou áudio pela primeira vez
 À primeira vista, **40 segundos de processamento por segundo de fala**. Uma fala
 de 10 s levaria uns 6,6 min.
 
-**Não trate esse número como o RTF do sistema.** É a primeira geração do
-processo e inclui carregar 2,4 GB de pesos na RAM. O protocolo do laboratório
-sempre separa a primeira execução exatamente por isso. O regime permanente sai
-das execuções 2+ de `/voice` — e é esse número que decide se o VoiceStudio serve
-para conversa ou apenas para geração assíncrona.
+Uma segunda execução, 6 minutos depois e com o app reaberto, deu **173 s** para
+1,09 s de áudio — **RTF 158,5**. Mesma frase, mesma máquina, mesma versão.
+
+**Nenhum dos dois números é o RTF do sistema.** São as primeiras gerações de
+processos recém-abertos, e portanto incluem o carregamento de 2,4 GB de pesos. A
+dispersão de 4× entre duas execuções "iguais" prova que essa etapa domina a
+medição — o candidato mais provável é o cache de página do SO, quente numa
+coleta e frio na outra.
+
+O regime permanente sai das execuções 2+ dentro da mesma sessão (`/voice`), e é
+esse número que decide se o VoiceStudio serve para conversa ou só para geração
+assíncrona. **Até lá, a única afirmação honesta é: em CPU nesta máquina, a
+primeira frase de uma sessão fria demora entre 40 e 173 segundos.**
 
 O que já se pode afirmar com segurança: **não há GPU no caminho**
 (`omnivoice — cpu (no accelerator on this host)`, dito pelo próprio app), então o
