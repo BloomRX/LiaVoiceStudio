@@ -1,0 +1,9 @@
+# VoiceStudio Lab — o clone de terceiros não entra no versionamento desta sessão.
+# Ele é reproduzível: git clone https://github.com/debpalash/VoiceStudio.git lab/VoiceStudio
+lab/VoiceStudio/
+
+# Artefatos de experimentos locais
+lab/reports/evidence/audio/
+.venv/
+__pycache__/
+*.pyc

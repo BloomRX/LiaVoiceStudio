@@ -1,0 +1,29 @@
+# Evidence A5 — Inventário de licenças (fonte: backend/config/model_licenses.json)
+schema=2  checked_at=2026-10-03  registry_version=2026-10-09.draft1  source_commit=06c6e077f0fc35149efefc3561e9be5ae835d916
+
+## Modelos de TTS (motor padrão e alternativas com suporte a português)
+
+modelo                                     licença                                  uso_comercial  review
+----------------------------------------------------------------------------------------------------------------------
+k2-fsa/OmniVoice                           CC-BY-NC (version unspecified); Higgs A  False          noncommercial
+audio-cpp/audio.cpp-gguf                   other                                    False          unreviewed
+Serveurperso/OmniVoice-GGUF                CC-BY-NC-4.0; Higgs Audio 2; Meta Llama  False          noncommercial
+openbmb/VoxCPM2                            apache-2.0                               False          unreviewed
+FunAudioLLM/Fun-CosyVoice3-0.5B-2512       apache-2.0                               False          unreviewed
+KittenML/kitten-tts-mini-0.8               apache-2.0                               False          unreviewed
+Supertone/supertonic-3                     openrail                                 False          unreviewed
+kyutai/pocket-tts                          cc-by-4.0                                False          unreviewed
+netease-youdao/Confucius4-TTS              apache-2.0                               False          unreviewed
+IndexTeam/IndexTTS-2.5                     other                                    False          unreviewed
+lj1995/GPT-SoVITS                          mit                                      False          unreviewed
+OpenMOSS-Team/MOSS-TTS-v1.5                apache-2.0                               False          unreviewed
+rednote-hilab/dots.tts-soar                apache-2.0                               False          unreviewed
+mlx-community/Kokoro-82M-bf16              apache-2.0                               False          unreviewed
+
+## Observações registradas para o motor padrão (OmniVoice)
+notes: The pinned card distinguishes Apache-2.0 code from non-commercial weights. The audio tokenizer has separate Boson and Meta terms; see docs/model-credits.md.
+commercial_inference: restricted
+commercial_outputs: unknown
+
+## Contagem de status de revisão
+Counter({'unreviewed': 54, 'noncommercial': 4})

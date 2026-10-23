@@ -1,0 +1,131 @@
+# Evidence A4 — Superfície de API local (extraída do código, não de runtime)
+# fonte: backend/api/routers/*.py, backend/main.py @ 48e85106
+
+Total de rotas no backend: 340
+
+## Rotas essenciais para uma integração externa
+  GET       /engines                                         [engines.py]
+  GET       /engines/tts                                     [engines.py]
+  GET       /engines/{engine_id}/disk-usage                  [engines.py]
+  GET       /engines/asr                                     [engines.py]
+  GET       /engines/llm                                     [engines.py]
+  GET       /engines/effects/presets                         [engines.py]
+  GET       /engines/diarisation                             [engines.py]
+  POST      /engines/diarisation/select                      [engines.py]
+  GET       /engines/translation                             [engines.py]
+  POST      /engines/translation/argos/packs/status          [engines.py]
+  POST      /engines/translation/argos/packs/install         [engines.py]
+  POST      /engines/translation/select                      [engines.py]
+  POST      /engines/translation/{engine_id}/install         [engines.py]
+  DELETE    /engines/translation/{engine_id}                 [engines.py]
+  GET       /engines/audiocpp/runtime/install/status         [engines.py]
+  POST      /engines/audiocpp/runtime/install                [engines.py]
+  POST      /engines/sidecar/{engine_id}/install             [engines.py]
+  GET       /engines/sidecar/{engine_id}/install/status      [engines.py]
+  DELETE    /engines/sidecar/{engine_id}/install             [engines.py]
+  GET       /engines/{engine_id}/health                      [engines.py]
+  POST      /engines/{engine_id}/selftest                    [engines.py]
+  POST      /engines/select                                  [engines.py]
+  GET       /generate/budget                                 [generation.py]
+  POST      /generate                                        [generation.py]
+  GET       /models/licenses/receipts/{plan_digest}          [model_licenses.py]
+  DELETE    /models/licenses/receipts/{plan_digest}          [model_licenses.py]
+  POST      /models/licenses/verify/{plan_digest}            [model_licenses.py]
+  GET       /models/licenses/acceptance/{repo_id:path}       [model_licenses.py]
+  GET       /models/licenses/details/{repo_id:path}          [model_licenses.py]
+  POST      /models/licenses/accept                          [model_licenses.py]
+  POST      /models/licenses/revoke                          [model_licenses.py]
+  POST      /v1/audio/speech                                 [openai_compat.py]
+  GET       /v1/audio/voices                                 [openai_compat.py]
+  GET       /profiles                                        [profiles.py]
+  POST      /profiles                                        [profiles.py]
+  GET       /profiles/{profile_id}                           [profiles.py]
+  GET       /profiles/{profile_id}/image                     [profiles.py]
+  PUT       /profiles/{profile_id}/image                     [profiles.py]
+  PUT       /profiles/{profile_id}                           [profiles.py]
+  PUT       /profiles/{profile_id}/audio                     [profiles.py]
+  GET       /profiles/{profile_id}/usage                     [profiles.py]
+  GET       /profiles/{profile_id}/audio                     [profiles.py]
+  POST      /profiles/{profile_id}/lock                      [profiles.py]
+  POST      /profiles/{profile_id}/unlock                    [profiles.py]
+  POST      /profiles/{profile_id}/consent                   [profiles.py]
+  POST      /profiles/{profile_id}/attestation               [profiles.py]
+  DELETE    /profiles/{profile_id}/attestation               [profiles.py]
+  DELETE    /profiles/{profile_id}/consent                   [profiles.py]
+  DELETE    /profiles/{profile_id}                           [profiles.py]
+  GET       /model/status                                    [system.py]
+  GET       /model/loaded                                    [system.py]
+  POST      /model/unload/{model_id}                         [system.py]
+  GET       /system/info                                     [system.py]
+  GET       /system/diagnose                                 [system.py]
+  WEBSOCKET /ws/tts                                          [tts_stream.py]
+
+## Endpoints de saúde/diagnóstico
+  GET       /health                                          [main.py]
+  GET       /startup/progress                                [main.py]
+
+## Contrato de POST /generate  (multipart/form-data)
+    text: str = Form(...),
+    language: Optional[str] = Form(None),
+    ref_audio: Optional[UploadFile] = File(None),
+    ref_text: Optional[str] = Form(None),
+    instruct: Optional[str] = Form(None),
+    design_recipe: Optional[str] = Form(None),
+    duration: Optional[float] = Form(None),
+    num_step: Optional[int] = Form(None),
+    guidance_scale: float = Form(2.0),
+    speed: float = Form(1.0),
+    t_shift: Optional[float] = Form(None),
+    denoise: bool = Form(True),
+    postprocess_output: Optional[bool] = Form(None),
+    layer_penalty_factor: Optional[float] = Form(None),
+    position_temperature: Optional[float] = Form(None),
+    class_temperature: Optional[float] = Form(None),
+    profile_id: Optional[str] = Form(None),
+    seed: Optional[int] = Form(None),
+    effect_preset: str = Form("broadcast"),
+    wav_bits: Literal["16", "24", "32"] = Form("16"),
+    engine: Optional[str] = Form(None),
+    preset_voice: Optional[str] = Form(None),
+    max_chunk_chars: int = Form(800, ge=0),
+    crossfade_ms: int = Form(50, ge=0, le=1000),
+    pronounce: bool = Form(True),
+    stream: bool = Form(False),
+
+## Contrato de POST /v1/audio/speech  (application/json, compatível OpenAI)
+    BaseModel):
+        """POST /v1/audio/speech — mirrors OpenAI's CreateSpeechRequest."""
+        model: str = Field(
+            default="omnivoice",
+            description=(
+                "TTS model to use. Maps to VoiceStudio engine IDs: "
+                "'omnivoice', 'voxcpm2', 'cosyvoice', 'mlx-audio', 'kittentts', 'moss-tts-nano'. "
+                "OpenAI model ids ('tts-1', 'tts-1-hd', 'gpt-4o-mini-tts', dated "
+                "snapshots) are aliases for the active engine."
+            ),
+        )
+        input: str = Field(
+            ...,
+            max_length=4096,
+            description="The text to synthesize. Max 4096 characters.",
+        )
+        voice: Union[str, dict] = Field(
+            default="default",
+            description=(
+                "Voice to use. For VoiceStudio: pass a voice profile ID, a voice "
+                "profile name (case-insensitive; an ID wins, and a name shared by "
+                "several profiles is a 409 listing their IDs), 'default', "
+                "or a KittenTTS preset name (also accepted as OpenAI's "
+                "{\"id\": ...} object). OpenAI voice names (alloy, ash, ballad, "
+                "coral, echo, fable, nova, onyx, sage, shimmer, verse, marin, "
+                "cedar) are accepted and mapped to the engine default."
+            ),
+        )
+        instructions: Optional[str] = Field(
+            default=None,
+            max_length=4096,
+
+## Formatos de resposta declarados
+    _FFMPEG_FORMATS = {
+    codec_args, container, rates = _FFMPEG_FORMATS[fmt]
+    if req.response_format in _FFMPEG_FORMATS:

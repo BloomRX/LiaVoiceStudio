@@ -1,0 +1,271 @@
+# executive-summary.md — Conclusão e recomendação
+
+**Missão:** avaliar o VoiceStudio como solução local de geração de voz para a Lia,
+antes de qualquer integração.
+**Data:** 2026-10-23 · **Versão avaliada:** `main` @ `48e85106` (estável de
+referência: **v0.5.6**)
+
+---
+
+## 1. O que foi possível fazer — e o que não foi
+
+Preciso começar pelo limite, porque ele condiciona tudo o que vem depois.
+
+**A missão pressupunha uma máquina Windows com GPU AMD e disco `J:`. Esse
+ambiente não existe neste laboratório.** O agente roda em um contêiner Linux
+headless, sem `J:`, sem GPU, sem saída de áudio, com 3.8 GiB de RAM e 2 vCPU.
+
+Consequência direta:
+
+| Fase | Status real |
+|---|---|
+| A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
+| B — instalação | ❌ **Não testada** — instaladores são `.exe`; ambiente incompatível |
+| C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
+| D — AMD / Vulkan | ⚠️ **Parcial** — respondida por documentação + código; **nenhuma medição** |
+| E — API local | ✅ **Inspecionada no código** · ❌ **não exercitada em runtime** |
+| F — licenças | ✅ **Executada** com fontes primárias |
+| G — integração | ✅ **Análise arquitetural**, sem implementação |
+
+**Nenhuma medição de latência, RTF, uso de CPU/GPU ou nota de naturalidade é
+apresentada neste relatório.** Isso não é omissão: é a regra da missão, e
+inventar esses números seria pior do que não tê-los.
+
+---
+
+## 2. As três descobertas que decidem a questão
+
+### 2.1 O caminho Vulkan/AMD existe — mas não fala português
+
+Este é o achado mais importante e ele contraria a expectativa implícita da missão.
+
+A missão pede para investigar "`audio.cpp` e Breeze-TTS-2 para Vulkan e Radeon".
+A investigação confirmou que **o suporte é real**:
+
+- `docs/engines/audio-cpp.md`: `Windows x64 | CPU, Vulkan, CUDA`.
+- `backend/engines/audiocpp/bootstrap.py` fixa o binário
+  `audio-v0.7.4-bin-windows-x64-vulkan.zip` com SHA-256.
+- O upstream `0xShug0/audio.cpp` publica assets Vulkan para Windows (verificado
+  na API do GitHub, release v0.9.2).
+- O código faz descoberta real de dispositivo (`--list-devices`,
+  `--list-devices` com timeout, filtro de adaptador de software/llvmpipe,
+  preferência CUDA→ROCm→Metal→Vulkan discreto→CPU).
+
+**Mas:** `backend/engines/audiocpp/__init__.py` retorna
+`supported_languages = ["en", "zh"]`. O card oficial do Breeze-TTS-2 confirma:
+*"Bilingual Support — Generates natural English and Chinese speech."*
+
+**O único caminho de GPU que funciona numa Radeon no Windows serve apenas
+inglês e chinês.** Para o caso de uso da Lia — português brasileiro — ele é
+inútil.
+
+### 2.2 Tudo o que fala português roda em CPU nesse hardware
+
+O projeto é explícito, e a documentação confere com o código:
+
+> "**PyTorch GPU acceleration on Windows is NVIDIA/CUDA-only.** (...) **AMD GPUs
+> — including Ryzen / Ryzen AI integrated Radeon graphics — do not accelerate
+> PyTorch engines on Windows.**" — `docs/install/windows.md`
+
+A opção ROCm do VoiceStudio (`OMNIVOICE_TORCH_VARIANT=rocm`) é **Linux-only** e
+é ignorada no Windows. DirectML não é viável (exige PyTorch 2.4). A NPU Ryzen AI
+não é usada.
+
+O código tem suporte AMD sofisticado — `ROCM_GFX_OVERRIDES` remapeia
+`HSA_OVERRIDE_GFX_VERSION` para RDNA 2/3/3.5 e Vega — mas **isso é ROCm, e ROCm
+no Windows não é suportado**.
+
+**Resultado líquido:** numa máquina Windows + Radeon, o VoiceStudio com
+português brasileiro é inferência em **CPU**. Sem exceção entre os motores que
+falam português.
+
+### 2.3 O melhor motor em português é o de licença mais restritiva
+
+| Motor | pt-BR | Clone | Design | Licença dos pesos |
+|---|---|---|---|---|
+| **OmniVoice** (padrão) | ✅ | ✅ | ✅ | **CC-BY-NC** |
+| **Breeze-TTS-2** (Vulkan/AMD) | ❌ | ✅ | ✅ | **Research/NC** (inclui outputs self-hosted) |
+| VoxCPM2 / CosyVoice | ✅ | ✅ / ❌ | ✅ / ❌ | Apache-2.0 |
+
+O card do OmniVoice: *"The pre-trained model is licensed under the **CC-BY-NC**
+due to constraints from its training data (e.g., Emilia)."*
+
+O `model_licenses.json` do próprio projeto registra `commercial_inference:
+restricted` e **`commercial_outputs: unknown`**.
+
+Tradução prática: **uso pessoal e local, livre. Uso comercial, bloqueado no
+motor padrão e juridicamente incerto quanto ao áudio gerado.**
+
+Para a Lia, isso significa que a decisão de motor **não é técnica, é de produto**
+— e precisa ser tomada antes de escrever código.
+
+---
+
+## 3. O que é genuinamente bom no VoiceStudio
+
+Seria injusto resumir o projeto às suas limitações. A inspeção mostrou engenharia
+séria:
+
+- **API local muito bem feita.** Loopback-only por padrão, **sem autenticação
+  em loopback**, admin separado do consumo, proteção contra DNS rebinding, CORS
+  fechado. É exatamente o modelo certo para um processo local consumido por
+  outro processo local.
+- **Compatibilidade com OpenAI** em `/v1/audio/speech` — o formato mais fácil de
+  integrar que existe hoje.
+- **Métricas de streaming prontas.** `/ws/tts` devolve `ttfa_ms`, `gen_time_s` e
+  `rtf` no frame final. Isso é raro e resolve o problema de medir latência real
+  de conversação.
+- **Orçamentos de tempo por classe de hardware**, expostos em
+  `/generate/budget` (300 s acelerado, 600 s CPU) em vez de constantes mágicas.
+- **Consentimento de voz como cidadão de primeira classe**: endpoints de
+  `consent`, `attestation` e `lock` por perfil de voz.
+- **Transparência incomum sobre o próprio estado**: `gpu-report` por motor com
+  o motivo de cada fallback; `diagnose`; licenças por modelo com
+  `review_status` explícito, incluindo 54 modelos marcados `unreviewed` em vez
+  de fingir que estão resolvidos.
+- **Pin de SHA-256 por artefato binário** e verificação de tamanho no instalador
+  de runtime.
+
+O projeto **não mente sobre si mesmo** — e isso é o que tornou esta avaliação
+possível sem instalar nada.
+
+---
+
+## 4. Classificação das alternativas
+
+### 4.1 Motor padrão (OmniVoice) — com clonagem e design em pt-BR
+
+> ### 🟡 **PRECISA DE MAIS EVIDÊNCIAS**
+
+**Por quê não "recomendado":** é a única configuração com português + clonagem +
+design, e a API é excelente. Mas **não há uma única medição de qualidade ou
+latência em pt-BR** — nem neste laboratório, nem no projeto (a tabela de
+benchmarks oficial está literalmente vazia: *"No verified rows yet"*).
+
+**O que falta:** executar a Fase C na máquina real, com o corpus fixo, e um
+humano ouvir. Sem isso, recomendar seria adivinhação.
+
+**Risco a registrar:** licença CC-BY-NC + `commercial_outputs: unknown`.
+
+### 4.2 Caminho Vulkan / `audio.cpp` / Breeze-TTS-2 no Windows + AMD
+
+> ### 🔴 **NÃO RECOMENDADO**
+
+**Por quê:** dois motivos independentes, cada um suficiente.
+
+1. **Não fala português.** `supported_languages == ["en","zh"]`, confirmado no
+   código e no card do modelo.
+2. **Licença Research/Non-Commercial cobrindo explicitamente os outputs
+   self-hosted** — sem a zona cinzenta que o OmniVoice tem.
+
+Some-se: o VoiceStudio fixa `audio.cpp` **v0.7.4** enquanto o upstream está em
+**v0.9.2** — defasagem relevante para um runtime que evolui rápido.
+
+**Conclusão da Fase D:** a pergunta "Vulkan é mais rápido?" **não chega a ser
+respondida** porque a pergunta anterior — "Vulkan serve para o nosso caso?" —
+tem resposta negativa. Medir seria desperdício de tempo.
+
+### 4.3 VoxCPM2 / CosyVoice (Apache-2.0, com português)
+
+> ### 🟡 **PRECISA DE MAIS EVIDÊNCIAS** — e é o plano B mais promissor
+
+**Por quê:** resolvem o problema de licença do motor padrão mantendo português.
+VoxCPM2 tem clone **e** design; CosyVoice tem clone. Ambos rodam em CPU no
+hardware-alvo.
+
+**O que falta:** qualidade em pt-BR é desconhecida. Nenhum dos dois tem número
+publicado. Precisam do mesmo teste de escuta que o motor padrão.
+
+### 4.4 VoiceStudio como plataforma / arquitetura de integração
+
+> ### 🟢 **RECOMENDADO COMO OPÇÃO FUTURA**
+
+**Por quê:** independentemente de qual motor vencer a Fase C, a **forma** de
+integrar proposta em `integration-proposal.md` é sólida e satisfaz os três
+critérios da missão:
+
+- **Reversível** — adaptador removível, sem resíduo, Kokoro intacto.
+- **Local** — `127.0.0.1:3900`, sem exposição de rede, sem API key.
+- **Opcional** — Kokoro continua padrão; VoiceStudio é opt-in; falha cai para
+  Kokoro automaticamente.
+
+E é barata: o VoiceStudio já fala OpenAI, então o adaptador é um cliente HTTP
+com mapeamento de erros.
+
+### 4.5 Substituir o motor de voz da Lia
+
+> ### 🔴 **NÃO RECOMENDADO** — e não foi pedido
+
+A missão é explícita: não substituir automaticamente o motor existente. O
+relatório concorda por mérito próprio: sem medição de qualidade em pt-BR,
+substituir seria trocar um motor conhecido por um desconhecido, com licença pior.
+
+---
+
+## 5. Recomendação
+
+**Não integrar agora. Executar as Fases B–D na máquina real primeiro.**
+
+O caminho de menor risco, na ordem:
+
+1. **Validar a qualidade em pt-BR antes de qualquer código.** É o único dado que
+   falta e o único que não pode ser obtido por inspeção. Use
+   `corpus/` + a grade de avaliação em `test-matrix.md` §4.2.
+2. **Se a qualidade for boa e o uso for pessoal/local:** implementar o adaptador
+   descrito em `integration-proposal.md`, com Kokoro como padrão e VoiceStudio
+   opt-in. Reversível em um passo.
+3. **Se houver intenção comercial:** resolver a §2 antes de escrever código.
+   Provavelmente significa VoxCPM2/CosyVoice em vez de OmniVoice — o que exige
+   nova rodada de teste de qualidade.
+4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende.
+
+**Expectativa calibrada sobre desempenho:** no hardware-alvo, a inferência será
+em **CPU**. Isso é mais lento que GPU, e a missão deve ser planejada sabendo
+disso. O VoiceStudio mitiga parcialmente com chunking, streaming e orçamentos de
+tempo — mas não elimina o custo.
+
+---
+
+## 6. Limitações deste relatório
+
+Declaradas para que ninguém as descubra depois:
+
+1. **Nenhuma geração de áudio foi produzida.** Todo julgamento de qualidade está
+   ausente por impossibilidade, não por escolha.
+2. **Nenhuma medição de desempenho.** Nem latência, nem RTF, nem CPU/RAM/GPU.
+3. **Nenhum hardware AMD foi tocado.** As conclusões sobre AMD vêm de
+   documentação oficial + código, não de observação.
+4. **Ambiente não é o alvo.** Linux headless ≠ Windows + Radeon.
+5. **`main` não é release estável.** A inspeção foi em `main` (5 commits após
+   `v0.5.7-beta.1`). Para testes reais, fixar **v0.5.6**.
+6. **Não houve comparação com ElevenLabs.** A missão proíbe afirmar equivalência
+   sem comparação controlada; não houve comparação, logo não há afirmação.
+7. **Licenciamento não é parecer jurídico.** As questões da §6 de
+   `licensing.md` permanecem abertas por decisão, não por esquecimento.
+
+---
+
+## 7. Entregáveis
+
+| Arquivo | Conteúdo |
+|---|---|
+| `executive-summary.md` | este documento |
+| `environment.md` | sistema, hardware, versões, limitações, ausência do `J:` |
+| `test-matrix.md` | 16 configurações, corpus, procedimentos, status por fase |
+| `licensing.md` | app, pesos, tokenizadores, dependências, dúvidas jurídicas |
+| `integration-proposal.md` | arquitetura futura, sem implementação |
+| `corpus/` | corpus fixo pt-BR (10 frases) + SHA-256 de cada texto |
+| `evidence/` | logs e extrações brutas usadas como prova |
+
+---
+
+## 8. Uma nota sobre o método
+
+O laboratório não produziu nenhuma medição de voz porque não podia ouvir. O que
+produziu foi o mapa exato do que precisa ser medido, com o corpus pronto, os
+endpoints certos, os campos de métrica que o próprio app já devolve, e a lista de
+armadilhas que fariam o teste dar resultado falso — primeira execução mais lenta
+que as demais, queda silenciosa para CPU, `device=cpu` mascarado na UI,
+orçamento de 600 s em CPU vs. 300 s em GPU.
+
+Isso é menos do que a missão pedia. É mais do que uma opinião.

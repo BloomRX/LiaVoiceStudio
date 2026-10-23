@@ -1,0 +1,25 @@
+# Evidence A2 — Identidade da versão avaliada
+
+origem        : https://github.com/debpalash/VoiceStudio.git
+branch        : main
+commit SHA    : 48e85106eb00a69c9beea3bdbf0a23692c7aa8ca
+commit data   : 2026-10-23T19:34:19+05:30
+commit assunto: feat(electron): simplify sidebar controls and remove sponsor footer (#3031)
+describe      : v0.5.7-beta.1-5-g48e85106
+ultima tag estavel (GitHub Releases): v0.5.6 (publicada 2026-09-23T08:53:32Z)
+pre-release    : v0.5.7-beta.1
+versao package.json: 0.5.7-beta.1
+python exigido: 3.11
+licenca declarada: AGPL-3.0-only
+
+## Tamanho do checkout (com histórico)
+225M	.
+
+## Distribuição do código (linhas)
+ 126704 total
+ 128305 total
+
+## Submódulos
+[submodule "omnivoice-gallery"]
+	path = omnivoice-gallery
+	url = https://github.com/debpalash/omnivoice-gallery.git

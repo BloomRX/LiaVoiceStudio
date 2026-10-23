@@ -1,0 +1,35 @@
+# Evidence A3 — Motores TTS e idiomas declarados NO CÓDIGO
+# fonte: backend/services/tts_backend.py @ 48e85106eb00a69c9beea3bdbf0a23692c7aa8ca
+# nota: 'anunciado na doc' != 'presente no código' != 'testado em runtime'
+
+## _REGISTRY (import direto)
+  omnivoice            OmniVoiceBackend
+  cosyvoice            CosyVoiceBackend
+  kittentts            KittenTTSBackend
+  mlx-audio            MLXAudioBackend
+  voxcpm2              VoxCPM2Backend
+  moss-tts-nano        MossTTSNanoBackend
+  gpt-sovits           GPTSoVITSBackend
+  sherpa-onnx          SherpaOnnxBackend
+
+## _LAZY_REGISTRY (resolvido no primeiro uso)
+  indextts2            IndexTTS2Backend                 (engines.indextts)
+  omnivoice-gguf       OmniVoiceGGUFBackend             (engines.omnivoice_gguf)
+  supertonic3          Supertonic3Backend               (engines.supertonic3)
+  moss-tts-v15         MossTTSV15Backend                (engines.moss_tts_v15)
+  dots-tts             DotsTTSBackend                   (engines.dots_tts)
+  omnivoice-subprocess OmniVoiceSubprocessBackend       (engines.omnivoice_subprocess)
+  pockettts            PocketTTSBackend                 (engines.pockettts)
+  confucius4-tts       Confucius4Backend                (engines.confucius4)
+  audiocpp             AudioCPPBackend                  (engines.audiocpp)
+
+## Idiomas declarados por engine (código)
+  audiocpp (Breeze-TTS-2) : ["en", "zh"]
+  omnivoice (padrão)      : ["multi"]  -> tag aberta (600+ idiomas), sem bloqueio por idioma
+  cosyvoice               : inclui "pt"
+  supertonic3             : 31 idiomas; aceita nome completo ("Portuguese") — ver docs/engines/supertonic3.md
+  kittentts               : ["en"] (8 vozes preset)
+  mlx-audio (Kokoro etc.) : por modelo curado; kokoro inclui "pt" (Apple Silicon apenas)
+
+## Português na lista de idiomas do OmniVoice (docs/languages.md)
+    | 463 | Portuguese | pt | por | 16855.05 |
