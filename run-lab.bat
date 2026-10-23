@@ -37,6 +37,12 @@ REM ===========================================================================
 set "VS_LAB_ROOT=%~dp0"
 if "%VS_LAB_ROOT:~-1%"=="\" set "VS_LAB_ROOT=%VS_LAB_ROOT:~0,-1%"
 
+REM ATENCAO: "shift" renumera os parametros, e %0 passa a ser o primeiro
+REM argumento (/gguf, /voice...). Por isso %~f0 NAO pode ser lido depois do
+REM parse: guardamos o caminho real do .bat aqui, antes de qualquer shift.
+set "VS_SELF=%~f0"
+if not defined VS_SELF set "VS_SELF=%~dp0%~nx0"
+
 set "VS_TEMP_PS=%TEMP%\voicestudio-lab.ps1"
 set "PWSH_ARGS="
 set "NOPAUSE="
@@ -168,12 +174,16 @@ exit /b 0
 :run
 echo  Extraindo o script interno...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
- "$l = Get-Content -LiteralPath '%~f0'; $i = -1; for ($k = 0; $k -lt $l.Count; $k++) { if ($l[$k].Trim() -eq '#<PS_BEGIN>') { $i = $k; break } }; if ($i -lt 0) { exit 2 }; $l[$i..($l.Count - 1)] | Set-Content -LiteralPath '%VS_TEMP_PS%' -Encoding UTF8"
+ "$l = Get-Content -LiteralPath '%VS_SELF%'; $i = -1; for ($k = 0; $k -lt $l.Count; $k++) { if ($l[$k].Trim() -eq '#<PS_BEGIN>') { $i = $k; break } }; if ($i -lt 0) { exit 2 }; $l[$i..($l.Count - 1)] | Set-Content -LiteralPath '%VS_TEMP_PS%' -Encoding UTF8"
 
 if errorlevel 1 (
     echo.
     echo  ERRO: nao foi possivel extrair o script interno deste .bat.
-    echo        O arquivo pode estar corrompido ou ter sido editado.
+    echo        Se voce passou um argumento como /gguf ou /voice, esta copia
+    echo        do .bat e antiga e tem um bug conhecido na leitura dos
+    echo        argumentos. Atualize:
+    echo            git pull
+    echo        Caso contrario, o arquivo foi editado ou corrompido.
     echo.
     del "%VS_TEMP_PS%" >nul 2>&1
     pause
