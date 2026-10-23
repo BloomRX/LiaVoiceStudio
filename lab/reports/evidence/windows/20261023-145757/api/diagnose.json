@@ -1,0 +1,134 @@
+﻿{
+    "app_version":  "0.5.6",
+    "platform":  "Windows-10-10.0.26200-SP0",
+    "checks":  [
+                   {
+                       "id":  "python",
+                       "label":  "Python runtime",
+                       "status":  "ok",
+                       "detail":  "3.11.16 on Windows-10-10.0.26200-SP0",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "device",
+                       "label":  "Compute device",
+                       "status":  "warn",
+                       "detail":  "cpu (no GPU acceleration detected)",
+                       "hint":  "Generation will be slow. If this machine has a GPU, check CUDA/ROCm drivers (Linux/Windows) or that you\u0027re on Apple Silicon (macOS)."
+                   },
+                   {
+                       "id":  "ffmpeg",
+                       "label":  "Media engine (ffmpeg)",
+                       "status":  "ok",
+                       "detail":  "ffmpeg: ~\\AppData\\Roaming\\VoiceStudio\\runtime\\project\\.venv\\Lib\\site-packages\\imageio_ffmpeg\\binaries\\ffmpeg-win-x86_64-v7.1.exe; ffprobe: ~\\AppData\\Roaming\\OmniVoice\\media_tools\\ffbin-df95abcb0ce6\\win32\\ffprobe.exe",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "hf_token",
+                       "label":  "HuggingFace token",
+                       "status":  "warn",
+                       "detail":  "not set",
+                       "hint":  "Downloads may be rate-limited and speaker diarization won\u0027t work. Set one in Settings \u003e Credentials."
+                   },
+                   {
+                       "id":  "disk",
+                       "label":  "Disk space",
+                       "status":  "ok",
+                       "detail":  "190.3 GB free at ~\\AppData\\Roaming\\OmniVoice",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "data_dir",
+                       "label":  "Data directory",
+                       "status":  "ok",
+                       "detail":  "writable: ~\\AppData\\Roaming\\OmniVoice",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "ram",
+                       "label":  "System memory",
+                       "status":  "ok",
+                       "detail":  "15.9 GB total",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "engines",
+                       "label":  "TTS engines",
+                       "status":  "ok",
+                       "detail":  "active: omnivoice; available: omnivoice, kittentts, omnivoice-subprocess",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "gpu_routing",
+                       "label":  "GPU routing",
+                       "status":  "ok",
+                       "detail":  "omnivoice -\u003e cpu (no accelerator on this host)",
+                       "hint":  null
+                   },
+                   {
+                       "id":  "network",
+                       "label":  "HuggingFace hub",
+                       "status":  "ok",
+                       "detail":  "https://huggingface.co reachable",
+                       "hint":  null
+                   }
+               ],
+    "engine_execution":  [
+                             {
+                                 "family":  "tts",
+                                 "engine_id":  "omnivoice",
+                                 "implementation_variant":  "services.tts_backend.OmniVoiceBackend",
+                                 "declared_device_families":  [
+                                                                  "cuda",
+                                                                  "rocm",
+                                                                  "mps",
+                                                                  "cpu"
+                                                              ],
+                                 "evidence_state":  "loaded",
+                                 "actual_execution_provider":  "cpu",
+                                 "actual_execution_device":  "cpu",
+                                 "gpu_name":  null,
+                                 "gpu_architecture":  null,
+                                 "runtime_vram_gb":  null,
+                                 "precision_or_quantization":  "torch.float16",
+                                 "cpu_fallback_reason":  null,
+                                 "cpu_fallback_stage":  null,
+                                 "parent_memory_observable":  true,
+                                 "runtime_versions":  {
+                                                          "python":  "3.11.16",
+                                                          "torch":  "2.8.0+cu128"
+                                                      }
+                             },
+                             {
+                                 "family":  "asr",
+                                 "engine_id":  "whisperx",
+                                 "implementation_variant":  "services.asr_backend.WhisperXBackend",
+                                 "declared_device_families":  [
+                                                                  "cuda",
+                                                                  "cpu"
+                                                              ],
+                                 "evidence_state":  "not_loaded",
+                                 "actual_execution_provider":  null,
+                                 "actual_execution_device":  null,
+                                 "gpu_name":  null,
+                                 "gpu_architecture":  null,
+                                 "runtime_vram_gb":  null,
+                                 "precision_or_quantization":  null,
+                                 "cpu_fallback_reason":  null,
+                                 "cpu_fallback_stage":  null,
+                                 "parent_memory_observable":  true,
+                                 "runtime_versions":  {
+                                                          "python":  "3.11.16",
+                                                          "torch":  "2.8.0+cu128",
+                                                          "ctranslate2":  "4.4.0",
+                                                          "faster-whisper":  "1.2.1"
+                                                      }
+                             }
+                         ],
+    "summary":  {
+                    "ok":  true,
+                    "passed":  8,
+                    "warnings":  2,
+                    "failures":  0
+                }
+}
