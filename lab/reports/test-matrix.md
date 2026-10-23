@@ -286,6 +286,20 @@ vezes seguidas (`20261023-150602`): 40,31 s e 39,96 s — 0,9 % de diferença. O
 outlier de 173 s da coleta `145020` **não se repetiu em 8 execuções** e deve ser
 tratado como incidente isolado daquela sessão, não como variância do motor.
 
+**Nota sobre memória (coleta `20261023-155155`).** Durante a geração o próprio
+app emitiu:
+
+```
+WARNING [omnivoice.memory_budget] TTS load (omnivoice): Low memory: 1.3 GB free.
+        Loading a large model here risks the backend being killed by the OS
+INFO   Capture ASR preload skipped: <4GB free RAM
+```
+
+Com 15,89 GB totais e o modelo carregado, sobravam **1,3 GB livres**. Isso importa
+para a Lia: rodar o VoiceStudio **junto** com outros modelos (o Kokoro dela, por
+exemplo) compete por RAM. O backend avisa que pode ser morto pelo SO — não é
+teórico, é o orçamento de memória do próprio app calculando.
+
 **Consequência para a Lia:** RTF 25,9 significa que o VoiceStudio leva **26
 segundos de CPU para produzir 1 segundo de fala**.
 

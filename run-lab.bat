@@ -426,7 +426,13 @@ Write-Host " Saida:  $OutDir" -ForegroundColor DarkGray
 Write-Host "================================================================" -ForegroundColor White
 if ($Full) { Write-Host " Modo: COMPLETO (corpus + repeticoes)" -ForegroundColor Magenta }
 elseif ($Voice) { Write-Host " Modo: VOZ (corpus completo)" -ForegroundColor Magenta }
-else { Write-Host " Modo: RAPIDO (ambiente + API + 1 frase)" -ForegroundColor Magenta }
+else { Write-Host " Modo: RAPIDO (ambiente + API + 2 frases)" -ForegroundColor Magenta }
+
+# Eco das opcoes: se um argumento nao chegar, aparece aqui em vez de virar
+# um "pulou sem avisar". (Acredite: ja aconteceu.)
+Write-Host (" Opcoes: gguf={0} voice={1} full={2} noinstall={3} nomodel={4} engine='{5}'" -f `
+    [bool]$Gguf, [bool]$Voice, [bool]$Full, [bool]$NoInstall, [bool]$NoModel, $Engine) `
+    -ForegroundColor DarkGray
 
 # ---------------------------------------------------------------- [1/10] preflight
 Write-Step '1/10' 'Verificando pre-requisitos'
@@ -849,8 +855,8 @@ if ($apiStatus.reachable) {
     [void](Invoke-Api -Path '/startup/progress' -SaveAs 'startup-progress.json')
     [void](Invoke-Api -Path '/system/info'      -SaveAs 'system-info.json')
     [void](Invoke-Api -Path '/system/diagnose'  -SaveAs 'diagnose.json' -TimeoutSec 30)
-    [void](Invoke-Api -Path '/settings/compute-device' -SaveAs 'compute-device.json' -TimeoutSec 20)
-    [void](Invoke-Api -Path '/system/model/status'     -SaveAs 'model-status.json' -TimeoutSec 20)
+    [void](Invoke-Api -Path '/model/status' -SaveAs 'model-status.json' -TimeoutSec 20)
+    [void](Invoke-Api -Path '/api/settings/performance-profile' -SaveAs 'performance-profile.json' -TimeoutSec 20)
     # /generate/budget so existe em versoes mais novas que a 0.5.6; o erro
     # fica registrado mas nao conta como problema.
     [void](Invoke-Api -Path '/generate/budget' -SaveAs 'budget.json' -TimeoutSec 10 -Tolerant)
@@ -1004,11 +1010,11 @@ if ($apiStatus.reachable) {
 # do llama.cpp - e o backend dele diz que o binario faz dlopen de ggml-vulkan
 # "quando presente". Se esse for o caso no Windows, existe um caminho de GPU
 # para portugues nesta placa. Este passo mede isso em vez de supor.
-$gguf = $null
+$ggufInfo = $null
 if ($Gguf) {
     Write-Step '7b' 'Motor GGUF e backend Vulkan'
 
-    $gguf = [ordered]@{
+    $ggufInfo = [ordered]@{
         binary_found     = $false
         binary           = $null
         binary_bytes     = 0
@@ -1043,33 +1049,33 @@ if ($Gguf) {
         $files = @(Get-ChildItem -Path $d -File -ErrorAction SilentlyContinue)
         foreach ($f in $files) {
             if ($f.Name -like 'omnivoice-tts*') {
-                $gguf.binary       = $f.FullName
-                $gguf.binary_bytes = $f.Length
-                if ($f.Length -gt 0) { $gguf.binary_found = $true }
-                else { $gguf.placeholders += $f.FullName }
+                $ggufInfo.binary       = $f.FullName
+                $ggufInfo.binary_bytes = $f.Length
+                if ($f.Length -gt 0) { $ggufInfo.binary_found = $true }
+                else { $ggufInfo.placeholders += $f.FullName }
             }
             if ($f.Name -like 'ggml*') {
-                $gguf.ggml_libs += "$($f.Name) ($($f.Length) B)"
+                $ggufInfo.ggml_libs += "$($f.Name) ($($f.Length) B)"
             }
         }
     }
 
-    if ($gguf.binary_found) {
-        Write-Ok "binario: $($gguf.binary) ($([math]::Round($gguf.binary_bytes/1MB,1)) MB)"
-    } elseif ($gguf.binary) {
+    if ($ggufInfo.binary_found) {
+        Write-Ok "binario: $($ggufInfo.binary) ($([math]::Round($ggufInfo.binary_bytes/1MB,1)) MB)"
+    } elseif ($ggufInfo.binary) {
         Write-Warn2 'o binario existe mas tem 0 byte (placeholder de source checkout)'
     } else {
         Write-Warn2 'binario omnivoice-tts NAO encontrado neste build'
     }
 
-    if ($gguf.ggml_libs.Count -gt 0) {
-        Write-Info ("bibliotecas ggml ao lado do binario: " + ($gguf.ggml_libs -join '; '))
-        $vk = @($gguf.ggml_libs | Where-Object { $_ -like '*vulkan*' })
-        if ($vk.Count -gt 0) { $gguf.vulkan_hint = 'ggml-vulkan presente: ' + ($vk -join '; ') }
-        else { $gguf.vulkan_hint = 'nenhuma biblioteca ggml-vulkan ao lado do binario' }
+    if ($ggufInfo.ggml_libs.Count -gt 0) {
+        Write-Info ("bibliotecas ggml ao lado do binario: " + ($ggufInfo.ggml_libs -join '; '))
+        $vk = @($ggufInfo.ggml_libs | Where-Object { $_ -like '*vulkan*' })
+        if ($vk.Count -gt 0) { $ggufInfo.vulkan_hint = 'ggml-vulkan presente: ' + ($vk -join '; ') }
+        else { $ggufInfo.vulkan_hint = 'nenhuma biblioteca ggml-vulkan ao lado do binario' }
     } else {
-        $gguf.vulkan_hint = 'nenhuma biblioteca ggml* encontrada'
-        Write-Info $gguf.vulkan_hint
+        $ggufInfo.vulkan_hint = 'nenhuma biblioteca ggml* encontrada'
+        Write-Info $ggufInfo.vulkan_hint
     }
 
     $gg = $null
@@ -1077,15 +1083,15 @@ if ($Gguf) {
         $gg = @($engines.backends | Where-Object { $_.id -eq 'omnivoice-gguf' }) | Select-Object -First 1
     }
     if ($gg) {
-        $gguf.engine_available = [bool]$gg.available
-        $gguf.engine_reason    = $gg.reason
+        $ggufInfo.engine_available = [bool]$gg.available
+        $ggufInfo.engine_reason    = $gg.reason
         if ($gg.available) { Write-Ok 'o app considera o omnivoice-gguf disponivel' }
         else { Write-Warn2 "o app considera indisponivel: $($gg.reason)" }
     }
 
     # Tentativa de geracao. Sem a frase pronta, nao ha o que medir.
     $gCorpus = Join-Path $RepoRoot 'lab\reports\corpus\C6.txt'
-    if ($gguf.engine_available -and $apiStatus.reachable -and $curl -and (Test-Path $gCorpus)) {
+    if ($ggufInfo.engine_available -and $apiStatus.reachable -and $curl -and (Test-Path $gCorpus)) {
         Write-Info 'gerando uma frase com engine=omnivoice-gguf (baixa os quants na 1a vez)'
         $gText = (Get-Content -Path $gCorpus -Raw -Encoding UTF8).Trim()
         $gTxtFile = Join-Path $AudioDir 'C6-gguf.text.txt'
@@ -1102,31 +1108,31 @@ if ($Gguf) {
         )
         $gRes = (& $curl @gArgs 2>$null | Out-String).Trim()
         $gParts = $gRes -split ';'
-        $gguf.http = $gParts[0]
-        if ($gParts.Length -gt 1) { $gguf.wall_s = $gParts[1] }
+        $ggufInfo.http = $gParts[0]
+        if ($gParts.Length -gt 1) { $ggufInfo.wall_s = $gParts[1] }
 
-        if ($gguf.http -eq '200') {
-            $gguf.generated = $true
+        if ($ggufInfo.http -eq '200') {
+            $ggufInfo.generated = $true
             $hdrTxt = ''
             if (Test-Path $gHdr) { $hdrTxt = Get-Content -Path $gHdr -Raw -Encoding UTF8 }
             foreach ($line in ($hdrTxt -split "`n")) {
                 $l = $line.Trim()
-                if ($l -match '^(?i)x-gen-time:\s*(.+)$')  { $gguf.gen_s   = [double]$Matches[1] }
-                if ($l -match '^(?i)x-audio-duration:\s*(.+)$') { $gguf.audio_s = [double]$Matches[1] }
+                if ($l -match '^(?i)x-gen-time:\s*(.+)$')  { $ggufInfo.gen_s   = [double]$Matches[1] }
+                if ($l -match '^(?i)x-audio-duration:\s*(.+)$') { $ggufInfo.audio_s = [double]$Matches[1] }
             }
-            if ($gguf.gen_s -and $gguf.audio_s -and $gguf.audio_s -gt 0) {
-                $gguf.rtf = [math]::Round($gguf.gen_s / $gguf.audio_s, 3)
-                Write-Ok "GGUF: gen=$($gguf.gen_s)s audio=$($gguf.audio_s)s RTF=$($gguf.rtf)"
+            if ($ggufInfo.gen_s -and $ggufInfo.audio_s -and $ggufInfo.audio_s -gt 0) {
+                $ggufInfo.rtf = [math]::Round($ggufInfo.gen_s / $ggufInfo.audio_s, 3)
+                Write-Ok "GGUF: gen=$($ggufInfo.gen_s)s audio=$($ggufInfo.audio_s)s RTF=$($ggufInfo.rtf)"
             } else {
                 Write-Ok 'GGUF: HTTP 200, mas sem X-Gen-Time/X-Audio-Duration'
             }
         } else {
-            Write-Warn2 "GGUF: HTTP $($gguf.http) - veja C6-gguf.error.txt"
+            Write-Warn2 "GGUF: HTTP $($ggufInfo.http) - veja C6-gguf.error.txt"
             if (Test-Path $gWav) {
                 Move-Item -LiteralPath $gWav -Destination (Join-Path $AudioDir 'C6-gguf.error.txt') -Force
             }
         }
-    } elseif (-not $gguf.engine_available) {
+    } elseif (-not $ggufInfo.engine_available) {
         Write-Info 'geracao com GGUF pulada: o motor nao esta disponivel'
     }
 
@@ -1135,23 +1141,23 @@ if ($Gguf) {
     if ($apiStatus.reachable) {
         $logs = Invoke-Api -Path '/system/logs?tail=800' -SaveAs 'backend-logs.json' -TimeoutSec 20 -Tolerant
         if ($logs -and $logs.lines) {
-            $gguf.vulkan_lines = @($logs.lines | Where-Object { $_ -match '(?i)vulkan|ggml|offload|device|backend' } | Select-Object -Last 40)
-            if ($gguf.vulkan_lines.Count -gt 0) {
-                Write-Info "linhas do log sobre dispositivo/backend: $($gguf.vulkan_lines.Count)"
+            $ggufInfo.vulkan_lines = @($logs.lines | Where-Object { $_ -match '(?i)vulkan|ggml|offload|device|backend' } | Select-Object -Last 40)
+            if ($ggufInfo.vulkan_lines.Count -gt 0) {
+                Write-Info "linhas do log sobre dispositivo/backend: $($ggufInfo.vulkan_lines.Count)"
             }
         }
     }
 
-    if ($gguf.rtf) {
-        $gguf.verdict = "GGUF rodou. RTF=$($gguf.rtf). Confira gguf.vulkan_lines para o dispositivo escolhido."
-    } elseif ($gguf.engine_available) {
-        $gguf.verdict = 'Motor disponivel, mas nao houve geracao concluida.'
+    if ($ggufInfo.rtf) {
+        $ggufInfo.verdict = "GGUF rodou. RTF=$($ggufInfo.rtf). Confira gguf.vulkan_lines para o dispositivo escolhido."
+    } elseif ($ggufInfo.engine_available) {
+        $ggufInfo.verdict = 'Motor disponivel, mas nao houve geracao concluida.'
     } else {
-        $gguf.verdict = "Motor indisponivel: $($gguf.engine_reason)"
+        $ggufInfo.verdict = "Motor indisponivel: $($ggufInfo.engine_reason)"
     }
-    Write-Info "veredito: $($gguf.verdict)"
+    Write-Info "veredito: $($ggufInfo.verdict)"
 
-    $gguf | ConvertTo-Json -Depth 6 |
+    $ggufInfo | ConvertTo-Json -Depth 6 |
         Out-File -FilePath (Join-Path $OutDir 'gguf.json') -Encoding UTF8
 }
 
@@ -1324,22 +1330,22 @@ if ($apiStatus.reachable) {
     Add-Line "- Versao: ``$($apiStatus.version)``"
     Add-Line "- Dispositivo efetivo: ``$($apiStatus.device)``"
 }
-if ($Gguf -and $gguf) {
+if ($Gguf -and $ggufInfo) {
     Add-Line ""
     Add-Line "## Motor GGUF (caminho Vulkan)"
     Add-Line ""
-    Add-Line "- Binario \`omnivoice-tts\`: **$(if ($gguf.binary_found) { 'presente' } else { 'ausente/inutilizavel' })**"
-    if ($gguf.binary) { Add-Line "- Caminho: \`$($gguf.binary)\` ($($gguf.binary_bytes) bytes)" }
-    Add-Line "- Bibliotecas ggml: $($gguf.vulkan_hint)"
-    Add-Line "- Motor disponivel no app: **$($gguf.engine_available)**"
-    if ($gguf.engine_reason) { Add-Line "- Motivo: $($gguf.engine_reason)" }
-    Add-Line "- Geracao de teste: $($gguf.generated) (HTTP $($gguf.http))"
-    if ($gguf.rtf) { Add-Line "- RTF GGUF: **$($gguf.rtf)** (gen $($gguf.gen_s)s / audio $($gguf.audio_s)s)" }
-    Add-Line "- Veredito: $($gguf.verdict)"
-    if ($gguf.vulkan_lines.Count -gt 0) {
+    Add-Line "- Binario \`omnivoice-tts\`: **$(if ($ggufInfo.binary_found) { 'presente' } else { 'ausente/inutilizavel' })**"
+    if ($ggufInfo.binary) { Add-Line "- Caminho: \`$($ggufInfo.binary)\` ($($ggufInfo.binary_bytes) bytes)" }
+    Add-Line "- Bibliotecas ggml: $($ggufInfo.vulkan_hint)"
+    Add-Line "- Motor disponivel no app: **$($ggufInfo.engine_available)**"
+    if ($ggufInfo.engine_reason) { Add-Line "- Motivo: $($ggufInfo.engine_reason)" }
+    Add-Line "- Geracao de teste: $($ggufInfo.generated) (HTTP $($ggufInfo.http))"
+    if ($ggufInfo.rtf) { Add-Line "- RTF GGUF: **$($ggufInfo.rtf)** (gen $($ggufInfo.gen_s)s / audio $($ggufInfo.audio_s)s)" }
+    Add-Line "- Veredito: $($ggufInfo.verdict)"
+    if ($ggufInfo.vulkan_lines.Count -gt 0) {
         Add-Line ""
         Add-Line '```'
-        foreach ($l in $gguf.vulkan_lines) { Add-Line $l }
+        foreach ($l in $ggufInfo.vulkan_lines) { Add-Line $l }
         Add-Line '```'
     }
 }
