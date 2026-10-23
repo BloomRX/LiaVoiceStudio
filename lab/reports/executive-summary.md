@@ -20,10 +20,10 @@ Consequência direta:
 | Fase | Status real |
 |---|---|
 | A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
-| B — instalação | ❌ **Não testada** — instaladores são `.exe`; ambiente incompatível |
+| B — instalação | 🟡 **Parcialmente testada** — instalada na máquina real pelo `run-lab.bat`: app + Python 3.11.6 respondendo. Falta gerar WAV e testar fechar/reabrir |
 | C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
-| D — AMD / Vulkan | ⚠️ **Hardware identificado, veredito fechado** — sem medição de desempenho (app não instalado) |
-| E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.4) |
+| D — AMD / Vulkan | ⚠️ **Veredito confirmado pelo app** (`CPU-only`) — medição de RTF/TTFA ainda pendente |
+| E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.5) |
 | F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
 
@@ -101,11 +101,22 @@ A RX 580 é **Polaris 20, `gfx803`**. Isso fecha três portas de uma vez:
 **Vulkan funciona** nesta placa (loader 1.3.250 respondeu). Mas o único motor
 Vulkan só fala inglês e chinês.
 
+O app **confirmou isso na própria tela de verificação**, depois de instalado:
+
+```
+GPU acceleration    ⚠ No compatible GPU detected — running CPU-only.
+Active engine routing  ✅ omnivoice — cpu (no accelerator on this host)
+```
+
+Não é inferência da análise estática: é o `gpu_routing_verdict()` do app sobre
+esta máquina. Captura e transcrição em
+[`evidence/install/README.md`](evidence/install/README.md).
+
 Portanto, para *esta* máquina, a pergunta "Vulkan é mais rápido?" é irrelevante
 para português: o único caminho que fala pt-BR é o **Ryzen em CPU**. Detalhe em
 `environment.md` §4.
 
-### 2.3 O melhor motor em português é o de licença mais restritiva
+### 2.4 O melhor motor em português é o de licença mais restritiva
 
 | Motor | pt-BR | Clone | Design | Licença dos pesos |
 |---|---|---|---|---|
@@ -125,7 +136,7 @@ motor padrão e juridicamente incerto quanto ao áudio gerado.**
 Para a Lia, isso significa que a decisão de motor **não é técnica, é de produto**
 — e precisa ser tomada antes de escrever código.
 
-### 2.4 O que o teste real da API acrescentou
+### 2.5 O que o teste real da API acrescentou
 
 O backend Python sobe sozinho, sem o Electron, e foi exercitado por HTTP neste
 sandbox. Detalhes em `evidence/runtime/`. Quatro achados que só o runtime daria:

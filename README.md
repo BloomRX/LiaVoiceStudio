@@ -52,6 +52,7 @@ LiaVoiceStudio/
 │  │  └─ evidence/
 │  │     ├─ a1..a6-*.txt       inspeção estática (Linux)
 │  │     ├─ runtime/           Fase E executada (backend real)
+│  │     ├─ install/           primeira instalacao real (preflight)
 │  │     └─ windows/           <- o que run-lab.bat produz
 │  │
 │  ├─ tools/
@@ -72,9 +73,9 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 | Fase | Status |
 |---|---|
 | A — investigação estática | ✅ executada |
-| B — instalação | ❌ não testada (depende do `run-lab.bat`) |
+| B — instalação | 🟡 parcial — app instalado e API no ar; falta gerar WAV |
 | C — qualidade de voz | ❌ não testada (depende de ouvinte humano) |
-| D — AMD / Vulkan | ⚠️ só documental (depende do `run-lab.bat`) |
+| D — AMD / Vulkan | ⚠️ `CPU-only` confirmado pelo app; falta medir RTF |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |

@@ -100,14 +100,15 @@ Por padrão, **tudo vai para `C:`**:
 |---|---|
 | App | `%LOCALAPPDATA%\Programs\VoiceStudio` |
 | Ambiente Python + dados | raiz de runtime padrão do app (`%LOCALAPPDATA%`) |
-| Cache do Hugging Face (pesos) | `%USERPROFILE%\.cache\huggingface` |
+| Cache do Hugging Face (pesos) | `%LOCALAPPDATA%\OmniVoice\hf_cache` (**medido**, não o `~\.cache` padrão) |
 
 A tela de setup permite escolher outra pasta para o runtime, mas **só pela
 interface** (`setRuntimeLocation` é IPC do renderer). O script usa o padrão e
 registra os caminhos em `app.json`.
 
-Na máquina-alvo, `C:` tem 203,66 GB livres — folga suficiente. A exigência mínima
-que o próprio app impõe é de **~9 GiB** na unidade escolhida.
+Na máquina-alvo, `C:` tinha 203,68 GB livres antes da instalação e **190,2 GB**
+depois do app + ambiente Python (≈13,5 GB consumidos). O piso que o app exige é
+`MIN_FREE_GB = 10` GiB (`setup/models.py`); a tela em português fala em 9 GiB.
 
 ### A.5 Riscos e efeitos colaterais
 
@@ -115,7 +116,7 @@ que o próprio app impõe é de **~9 GiB** na unidade escolhida.
 |---|---|---|
 | Modelo baixa automaticamente na 1ª geração | Médio | O script chama `POST /models/install` explicitamente e acompanha `/models/install/status` |
 | PyTorch CPU **substitui** um PyTorch CUDA existente (se houver) | **Alto** se você usa CUDA para outra coisa | O instalador escolhe a variante na 1ª execução; verificar antes com `python -c "import torch;print(torch.version.cuda)"` |
-| `uv`/HF gravam cache no disco `C:` | Baixo | Previsto; `C:` tem 203 GB livres. Mover exige a interface do app |
+| `uv`/HF gravam cache no disco `C:` | Baixo | Medido: **~13,5 GB** já consumidos antes dos pesos. `C:` tinha 203,68 GB |
 | ~10 GB a menos em `C:` | Baixo | Registrado antes/depois pelo script |
 | App roda em CPU e parece "travado" | Médio | Esperado; ver `test-matrix.md` §5.3 |
 | Script `irm ... \| iex` recomendado pelo README | **Médio** | **Não usar.** O script baixa o `.exe` e confere o SHA-256 antes de executar |
@@ -126,19 +127,23 @@ que o próprio app impõe é de **~9 GiB** na unidade escolhida.
 1. **Configurações → Manutenção → Desinstalar** dentro do app. Ele oferece a
    opção de remover também os modelos. Pelo Painel de Controle o desinstalador
    remove o app e **deixa** dados e modelos.
-2. O que sobrar, conferir antes de apagar:
+2. O que sobrar, conferir antes de apagar — **três** diretórios, todos privados
+   deste app:
 
 ```powershell
-$appData = "$env:APPDATA\omnivoice"              # dados/configuracoes
-$models  = "$env:USERPROFILE\.cache\huggingface"  # pesos (compartilhado!)
-$runtime = "$env:LOCALAPPDATA\VoiceStudio"         # ambiente Python
-foreach ($p in $appData, $models, $runtime) {
+$paths = @(
+    "$env:APPDATA\omnivoice",                    # dados/configuracoes
+    "$env:LOCALAPPDATA\OmniVoice\hf_cache",       # pesos do modelo (medido)
+    "$env:LOCALAPPDATA\VoiceStudio"                # ambiente Python
+)
+foreach ($p in $paths) {
     if (Test-Path $p) { "{0}  {1:N1} GB" -f $p, ((Get-ChildItem $p -Recurse -Force -ErrorAction SilentlyContinue | Measure-Object Length -Sum).Sum / 1GB) }
 }
 ```
 
-3. Atenção: `%USERPROFILE%\.cache\huggingface` é **compartilhado** com outros
-   apps que usam Hugging Face. Apagar inteiro pode afetar outra coisa.
+3. O cache de pesos **não** é o `%USERPROFILE%\.cache\huggingface` global (isso
+   foi medido na primeira execução: ver `evidence/install/README.md`), então
+   apagá-lo não afeta outros apps.
 4. Conferir o espaço:
 
 ```powershell
