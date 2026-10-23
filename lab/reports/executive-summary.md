@@ -12,8 +12,12 @@ referência: **v0.5.6**)
 Preciso começar pelo limite, porque ele condiciona tudo o que vem depois.
 
 **A missão pressupunha uma máquina Windows com GPU AMD e disco `J:`. Esse
-ambiente não existe neste laboratório.** O agente roda em um contêiner Linux
-headless, sem `J:`, sem GPU, sem saída de áudio, com 3.8 GiB de RAM e 2 vCPU.
+ambiente não existe *dentro* do laboratório do agente.** O agente roda em um
+contêiner Linux headless, sem `J:`, sem GPU, sem saída de áudio, com 3.8 GiB de
+RAM e 2 vCPU. A solução adotada foi inverter o fluxo: em vez de eu testar de
+fora, um único `run-lab.bat` **roda na máquina do operador** e traz as medições
+de volta. É por isso que a coluna abaixo já não diz "não testado" na maioria
+das fases.
 
 Consequência direta:
 
@@ -21,20 +25,23 @@ Consequência direta:
 |---|---|
 | A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
 | B — instalação | ✅ **Testada na máquina real** — o `run-lab.bat` instalou (SHA-256 conferido, `/S`), baixou o modelo e gerou WAV. Falta o ciclo fechar/reabrir |
-| C — qualidade de voz | 🟡 **Áudio gerado (10 frases)**, aguardando avaliação humana — é o único juiz possível |
-| D — AMD / Vulkan | ✅ **Medido: RTF 25,9 em regime** (10 frases, CPU). Vulkan/GGUF não testado |
+| C — qualidade de voz | 🟡 **Áudio gerado (10 frases) + análise acústica objetiva** (§2.4.2); audição humana pendente — é o único juiz possível |
+| D — AMD / Vulkan | ✅ **Medido: RTF 25,9 em regime** (10 frases, CPU). GGUF testado e ausente; `/gpu` (audio.cpp/Vulkan) **pendente** |
 | E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.6) |
 | F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
 
-**Nenhuma medição de latência, RTF, uso de CPU/GPU ou nota de naturalidade é
-apresentada neste relatório.** Isso não é omissão: é a regra da missão, e
-inventar esses números seria pior do que não tê-los.
+**Nenhuma nota de naturalidade é apresentada neste relatório. Não houve
+comparação com ElevenLabs nem audição humana.** Os números de tempo que aparecem
+foram medidos pelo `run-lab.bat` na máquina-alvo e estão em
+`evidence/windows/20261023-150843/`; o que não foi medido está marcado como
+**pendente**, com o procedimento ao lado.
 
 Uma ressalva sobre a Fase E: o backend **subiu e respondeu** (Linux, CPU), mas
-**nenhum áudio foi gerado**, porque os pesos vêm do Hugging Face e esse domínio
-não é alcançável deste sandbox. "API validada" aqui significa contrato, códigos
-de erro e isolamento — não qualidade de áudio.
+**nenhum áudio foi gerado ali**, porque os pesos vêm do Hugging Face e esse
+domínio não é alcançável deste sandbox. "API validada" no ambiente do agente
+significa contrato, códigos de erro e isolamento — a geração de áudio foi
+validada depois, na máquina do operador.
 
 ---
 
@@ -96,7 +103,11 @@ A RX 580 é **Polaris 20, `gfx803`**. Isso fecha três portas de uma vez:
 - **A tabela `ROCM_GFX_OVERRIDES` do projeto não tem entrada para Polaris**
   (cobre gfx900/906, 1030, 1100, 1150/1151). Não existe nem o contorno por
   `HSA_OVERRIDE_GFX_VERSION`.
-- **~4 GB de VRAM** ficam abaixo do piso de 6 GB do OmniVoice.
+- ~~~4 GB de VRAM ficam abaixo do piso de 6 GB~~ **— retirado.** A placa tem
+  **8 GB**; os 4 GB vinham do `AdapterRAM` do WMI, que satura em `2³²−1`.
+  Com 8 GB, o Q4_K_M do OmniVoice-GGUF (~659 MB) cabe com folga. **Capacidade
+  não é o obstáculo** — o obstáculo é que o runtime GGML não vem no build do
+  Windows.
 
 **Vulkan funciona** nesta placa (loader 1.3.250 respondeu). Mas o único motor que
 o app expõe por Vulkan — `audio.cpp` rodando Breeze-TTS-2 — só fala inglês e
@@ -117,16 +128,11 @@ esta máquina. Captura e transcrição em
 Para *esta* máquina, no motor **padrão**, o caminho em português é o Ryzen em
 CPU. Detalhe em `environment.md` §4.
 
-> **Ressalva que eu devo a este relatório:** dizer "não existe caminho de GPU
-> para português" era forte demais. Há uma porta que eu não testei: o motor
-> `omnivoice-gguf`, que roda `omnivoice.cpp` (GGML) e, segundo o próprio
-> docstring, *"statically links GGML/GGML-cpu and dlopens GGML-cuda /
-> **GGML-vulkan** when present"*. É o mesmo mecanismo que faz o Qwen rodar em
-> Vulkan nesta placa. Nada dele está ligado pela interface — Vulkan não consta
-> do `gpu_compat`, o wrapper não passa `-ngl` —, então **não é promessa, é a
-> medição que falta**. O quant que ele escolheria sem CUDA/MPS (Q4_K_M, ~659 MB)
-> cabe nos ~4 GB da placa, ao contrário do piso de 6 GB do modelo em PyTorch.
-> Ver `test-matrix.md` §5.2.
+> **Ressalva — agora resolvida por teste.** A porta do `omnivoice-gguf` (runtime
+> `omnivoice.cpp`, GGML, que faria *dlopen* de `ggml-vulkan`) foi testada na
+> máquina-alvo e **não existe neste build**: `binary_found=false`,
+> `ggml_libs=[]`. Ver §4.2. A VRAM (8 GB) deixa de ser argumento: o obstáculo é
+> o binário ausente, não a placa.
 
 ### 2.4 A primeira geração real: RTF ≈ 40 em CPU
 
@@ -197,6 +203,24 @@ pré-renderizadas).
 O que já se pode afirmar com segurança: **não há GPU no caminho**
 (`omnivoice — cpu (no accelerator on this host)`, dito pelo próprio app), então o
 teto de desempenho é o Ryzen 5 5500, sem margem para "ligar a placa depois".
+
+### 2.4.2 A qualidade: o que o sinal já diz sem ninguém ouvir
+
+Os 10 WAVs acima foram analisados por sinal (YIN para F0, ver `test-matrix.md`
+§4.4). O **nível está correto**: pico 0,78–0,80, zero clipping, nenhum silêncio
+anômalo. Mas a **identidade vocal não se mantém**: com a mesma voz, o mesmo seed
+e o mesmo motor, o F0 mediano por frase variou de **119 Hz a 316 Hz — 2,64×**.
+C1 soa (pelo menos no papel) uma oitava acima de C3; C8 e C10 ficam no meio.
+
+Os saltos de oitava do estimador ficaram baixos (1,5–11%), então **não é erro de
+medição**: é a voz derivando entre frases. Em uso conversacional isso apareceria
+como "a Lia trocou de pessoa no meio da conversa".
+
+**A ressalva é obrigatória:** nenhum humano ouviu esses arquivos ainda. A análise
+detecta instabilidade, clipping e silêncio; **não** detecta pronúncia errada de
+"IPTU", "WhatsApp" ou entonação de pergunta. A Fase C continua **parcialmente
+testada**, e o teste que falta custa 10 minutos de fone de ouvido — comece por
+C1, C8 e C10.
 
 ### 2.5 O melhor motor em português é o de licença mais restritiva
 
@@ -321,6 +345,13 @@ Some-se: o VoiceStudio fixa `audio.cpp` **v0.7.4** enquanto o upstream está em
 respondida** porque a pergunta anterior — "Vulkan serve para o nosso caso?" —
 tem resposta negativa. Medir seria desperdício de tempo.
 
+**Correção de fato (operador, 2026-10-23):** a RX 580 tem **8 GB de VRAM**, não
+4. O valor de 4 GB era saturação do `AdapterRAM` do WMI. Isso derruba o
+argumento de capacidade — com 8 GB, até o modelo em FP16 caberia. **Não derruba
+os outros dois**: `gfx803` continua fora do ROCm, e PyTorch continua sem Vulkan.
+Por isso existe o modo `/gpu`, que mede a placa pelo único caminho nativo que o
+app oferece (audio.cpp/Vulkan).
+
 **E a segunda porta também fechou, agora com fato.** Eu havia levantado a
 hipótese de que o `omnivoice-gguf` (runtime `omnivoice.cpp`, GGML, que faz
 *dlopen* de `ggml-vulkan`) abriria um caminho Vulkan **para português**. O teste
@@ -382,22 +413,30 @@ substituir seria trocar um motor conhecido por um desconhecido, com licença pio
 
 ## 5. Recomendação
 
-**Não integrar agora. Executar as Fases B–D na máquina real primeiro.**
+**Não integrar agora. Fechar as duas lacunas que sobraram na máquina real.**
 
 O caminho de menor risco, na ordem:
 
-1. **Validar a qualidade em pt-BR antes de qualquer código.** É o único dado que
-   falta e o único que não pode ser obtido por inspeção. Para isso existe
-   **`run-lab.bat`** na raiz: ele instala o app, baixa o modelo, coleta hardware,
-   API e áudio do corpus, escreve o resumo e envia ao git. Depois ouça as amostras e preencha a grade de
-   `test-matrix.md` §4.2.
+0. **`run-lab.bat /gpu`** — 1 comando, ~15 min + download de 5 GB *só se* o
+   Vulkan enxergar a placa. Responde a última pergunta aberta da Fase D: *"a RX
+   580 é utilizável por algum motor deste app, hoje, sem compilar nada?"* Se o
+   RTF do Breeze em Vulkan não for muito menor que o de CPU, o caminho GPU está
+   encerrado com número, não com argumento. **Não** promete português: o Breeze
+   só fala inglês e chinês.
+1. **Validar a qualidade em pt-BR com ouvido humano.** É o único dado que não
+   pode ser obtido por inspeção nem por análise de sinal. Os 10 WAVs já existem
+   (`reports/evidence/windows/20261023-150843/`); basta ouvir **C1, C3, C8 e C10**
+   e preencher a grade de `test-matrix.md` §4.2. A hipótese a testar, levantada
+   pela análise acústica (§2.4.2): **C1 e C8 soam como outra pessoa?**
 2. **Se a qualidade for boa e o uso for pessoal/local:** implementar o adaptador
    descrito em `integration-proposal.md`, com Kokoro como padrão e VoiceStudio
    opt-in. Reversível em um passo.
 3. **Se houver intenção comercial:** resolver a §2 antes de escrever código.
    Provavelmente significa VoxCPM2/CosyVoice em vez de OmniVoice — o que exige
    nova rodada de teste de qualidade.
-4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende.
+4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende — não por
+   falta de VRAM (a placa tem 8 GB), mas por não existir modelo em português
+   nesse runtime.
 
 **Desempenho — agora medido, não estimado:** no hardware-alvo a inferência é em
 **CPU**, com **RTF 25,9** (26 s de processamento por segundo de fala). Para a
@@ -415,12 +454,16 @@ fator de 26×.
 
 Declaradas para que ninguém as descubra depois:
 
-1. **Nenhuma geração de áudio foi produzida.** Todo julgamento de qualidade está
-   ausente por impossibilidade, não por escolha.
-2. **Nenhuma medição de desempenho.** Nem latência, nem RTF, nem CPU/RAM/GPU.
-3. **O hardware AMD foi identificado, mas não exercitado.** A coleta do
-   `run-lab.bat` descreveu a máquina (RX 580 / Ryzen 5 5500); nenhuma inferência
-   rodou nela, porque o VoiceStudio **não está instalado**.
+1. **A qualidade não foi julgada por um humano.** 10 frases foram geradas e
+   analisadas por sinal (§2.4.2, `test-matrix.md` §4.4) — o que **não** cobre
+   pronúncia, sotaque, naturalidade nem entonação. A grade subjetiva de §4.2
+   está vazia.
+2. **A GPU não foi exercitada.** O caminho GGUF foi testado e não existe neste
+   build; o caminho `audio.cpp`/Vulkan está escrito no `/gpu` mas **não
+   executado**. Nenhum número de Vulkan nesta máquina é medido.
+3. **CPU/RAM durante a inferência não foram amostrados.** O script mede tempo,
+   não consumo. O único dado de memória é o `memory_budget` de 1,2–1,9 GB
+   reportado pelo app.
 4. **Ambiente de análise não é o alvo.** A inspeção estática e a Fase E rodaram
    em Linux headless; o alvo é Windows + Radeon.
 5. **`main` não é release estável.** A inspeção foi em `main` (5 commits após

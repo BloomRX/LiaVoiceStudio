@@ -43,6 +43,7 @@ O arquivo é **ASCII puro** e CRLF, para não depender de code page.
 | `run-lab.bat /noinstall` | não baixa nem instala o app | — |
 | `run-lab.bat /nomodel` | não baixa o modelo OmniVoice | — |
 | `run-lab.bat /gguf` | testa o motor `omnivoice-gguf` (caminho Vulkan) | +5–20 min |
+| `run-lab.bat /gpu` | mede a **placa** pelo runtime Vulkan do `audio.cpp` (baixa 5 GB só se o Vulkan enxergar a GPU) | +10–40 min |
 | `run-lab.bat /nogit` | Coleta, sem commit/push | — |
 | `run-lab.bat /engine:audiocpp` | força um motor específico | — |
 | `run-lab.bat /nopause` | não espera tecla no final | — |
@@ -97,6 +98,34 @@ Resultado em `gguf.json` e na seção "Motor GGUF (caminho Vulkan)" do
 `summary.md`. **Se o binário não existir, o teste termina em diagnóstico** — e
 nesse caso testar Vulkan exige compilar `omnivoice.cpp` com `buildvulkan.sh`,
 o que é outra escala de esforço.
+
+### O modo `/gpu` — medir a placa sem compilar nada
+
+Foi exatamente o que aconteceu: o `/gguf` respondeu
+`binary_found=false` — a v0.5.6 não distribui o `omnivoice-tts` nem as DLL
+`ggml*` no Windows. Sobrou um caminho **nativo**: o `audio.cpp`, cujo binário
+Vulkan (`audio-v0.7.4-bin-windows-x64-vulkan.zip`, 57 MB) o próprio app baixa e
+confere por SHA-256.
+
+O `/gpu` faz, em ordem:
+
+1. **lê a VRAM real** no registro (`HardwareInformation.qwMemorySize`). O
+   `AdapterRAM` do WMI satura em 4 GB e mente em placas de 8 GB; quando o
+   PowerShell devolve o valor como `byte[]`, o script soma byte a byte;
+2. instala o runtime nativo pelo serviço do app
+   (`/engines/audiocpp/runtime/install` + `/status`) e espera ficar `installed`;
+3. roda `audiocpp_server.exe --list-devices` e guarda a saída **bruta** — é o
+   único juiz de se o Vulkan vê a placa (`REGISTRY: idx name`);
+4. **só se a saída tiver `Vulkan:`** baixa o Breeze-TTS-2 (4,98 GB). Se não
+   tiver, não baixa nada: não faz sentido gastar 5 GB para um teste que rodaria
+   em `llvmpipe` (que o próprio bootstrap descarta de propósito);
+5. gera uma frase **em inglês** com `engine=audiocpp` e calcula o RTF por
+   `X-Gen-Time` ÷ `X-Audio-Duration`;
+6. grava `gpu.json` e a seção "GPU real (Vulkan / audio.cpp)" no `summary.md`.
+
+**Leia o resultado com cuidado:** esse RTF mede a **placa**, não o português — o
+Breeze-TTS-2 só fala inglês e chinês. Ele responde "a RX 580 é utilizável por
+algum motor deste app hoje, sem compilar nada?", e é a última lacuna da Fase D.
 
 ### O único clique que não dá para automatizar
 

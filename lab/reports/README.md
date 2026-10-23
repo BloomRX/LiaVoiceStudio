@@ -31,20 +31,23 @@ como possível provedor local de voz para a Lia, em português brasileiro.
 
 ## Três regras que valem para tudo aqui
 
-**1. Nada foi testado em áudio.** Não houve geração de voz, não houve escuta,
-não houve medição de latência. Todo número ausente está ausente porque não foi
-medido — e está marcado como **NÃO TESTADO**, com o procedimento de validação.
+**1. Houve áudio; não houve escuta.** O `run-lab.bat` gerou 10 frases em
+português na máquina-alvo, e elas foram analisadas por sinal (F0, silêncio,
+clipping — ver `test-matrix.md` §4.4). O que **não** houve foi **ouvido humano**:
+nenhuma nota de naturalidade, sotaque ou pronúncia é dada aqui. Todo número
+ausente está marcado como **NÃO TESTADO**, com o procedimento de validação.
 
-**2. O ambiente não é o ambiente-alvo.** A missão pressupõe Windows + GPU AMD +
-disco `J:`. O laboratório rodou em Linux headless, sem GPU e sem `J:`. As
-conclusões sobre AMD e Windows vêm de documentação oficial e código-fonte, não
-de observação — e o relatório diz isso em cada ponto onde importa.
+**2. O agente e a máquina-alvo são lugares diferentes.** O laboratório do
+agente é Linux headless, sem GPU e sem `J:`. Por isso a coleta foi invertida: um
+único `run-lab.bat` roda na máquina Windows do operador e traz as medições de
+volta. O que é **medido** está em `evidence/windows/`; o que vem de documentação
+e código-fonte está marcado como **inspecionado**.
 
-**3. A API foi testada de verdade — o áudio não.** A Fase E é a única com
-execução real: o backend subiu (Linux/CPU) e respondeu por HTTP. Isso validou
-contrato, códigos de erro, gate de licença e isolamento de rede. **Não** validou
-geração de áudio: os pesos vêm do Hugging Face, inacessível deste sandbox.
-Resultados em [`evidence/runtime/`](evidence/runtime/README.md).
+**3. A API foi testada duas vezes, em dois lugares.** No agente (Linux/CPU) o
+backend subiu e respondeu por HTTP — contrato, códigos de erro, gate de licença e
+isolamento de rede. Na máquina do operador a mesma API **gerou os WAVs**. Os
+detalhes estão em [`evidence/runtime/`](evidence/runtime/README.md) e em
+`evidence/windows/`.
 
 ---
 

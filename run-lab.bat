@@ -96,6 +96,7 @@ if /i "%A%"=="/nopause" goto arg_nopause
 if /i "%A%"=="/noinstall" goto arg_noinstall
 if /i "%A%"=="/nomodel" goto arg_nomodel
 if /i "%A%"=="/gguf" goto arg_gguf
+if /i "%A%"=="/gpu"      goto arg_gpu
 
 echo %A% | findstr /b /i "/engine:" >nul
 if not errorlevel 1 goto arg_engine
@@ -142,6 +143,11 @@ set "PWSH_ARGS=!PWSH_ARGS! -Gguf"
 shift
 goto parse
 
+:arg_gpu
+set "PWSH_ARGS=!PWSH_ARGS! -Gpu"
+shift
+goto parse
+
 :arg_engine
 set "PWSH_ARGS=!PWSH_ARGS! -Engine %A:/engine:=%"
 shift
@@ -163,6 +169,7 @@ echo    run-lab.bat /url:http://127.0.0.1:3900
 echo    run-lab.bat /noinstall         nao baixa/instala o app (so coleta)
 echo    run-lab.bat /nomodel           nao baixa o modelo OmniVoice
 echo    run-lab.bat /gguf              testa o motor GGUF (caminho Vulkan)
+echo    run-lab.bat /gpu               mede a GPU de verdade (Vulkan/audio.cpp)
 echo    run-lab.bat /nogit             coleta sem commit/push
 echo    run-lab.bat /nopause           nao espera tecla no final
 echo.
@@ -237,6 +244,13 @@ exit /b %RC%
     Verifica se o binario existe e se ele traz o backend Vulkan, e tenta uma
     geracao com esse motor. Nao baixa nada alem dos quants que o motor pedir.
 
+.PARAMETER Gpu
+    Mede a GPU de verdade. Le a VRAM real (o WMI satura em 4 GB), instala o
+    runtime nativo audio.cpp (binario Vulkan, 57 MB) e lista os dispositivos
+    Vulkan da placa. So baixa o modelo Breeze-TTS-2 (4,98 GB) se a GPU for
+    realmente enumerada - e entao gera uma frase e mede o RTF em Vulkan.
+    O modelo e en/zh: serve para medir a PLACA, nao para julgar o portugues.
+
 .PARAMETER AppWaitSeconds
     Quanto esperar a API subir depois de abrir o app. Padrao 1800.
 
@@ -270,6 +284,7 @@ param(
     [switch]$NoInstall,
     [switch]$NoModel,
     [switch]$Gguf,
+    [switch]$Gpu,
     [int]$AppWaitSeconds = 1800,
     [string]$Model = 'k2-fsa/OmniVoice',
     [string]$GgufModel = 'Serveurperso/OmniVoice-GGUF',
@@ -430,8 +445,8 @@ else { Write-Host " Modo: RAPIDO (ambiente + API + 2 frases)" -ForegroundColor M
 
 # Eco das opcoes: se um argumento nao chegar, aparece aqui em vez de virar
 # um "pulou sem avisar". (Acredite: ja aconteceu.)
-Write-Host (" Opcoes: gguf={0} voice={1} full={2} noinstall={3} nomodel={4} engine='{5}'" -f `
-    [bool]$Gguf, [bool]$Voice, [bool]$Full, [bool]$NoInstall, [bool]$NoModel, $Engine) `
+Write-Host (" Opcoes: gguf={0} gpu={1} voice={2} full={3} noinstall={4} nomodel={5} engine='{6}'" -f `
+    [bool]$Gguf, [bool]$Gpu, [bool]$Voice, [bool]$Full, [bool]$NoInstall, [bool]$NoModel, $Engine) `
     -ForegroundColor DarkGray
 
 # ---------------------------------------------------------------- [1/10] preflight
@@ -1161,6 +1176,257 @@ if ($Gguf) {
         Out-File -FilePath (Join-Path $OutDir 'gguf.json') -Encoding UTF8
 }
 
+# ----------------------------------------------- [7c] GPU real (Vulkan/audio.cpp)
+# Por que este passo existe: o modo padrao prova que o caminho PyTorch e CPU.
+# Mas a maquina tem uma RX 580 com 8 GB (o WMI reporta 4 GB e mente). O unico
+# runtime do app que fala Vulkan de verdade e o audio.cpp, cujo binario do
+# Windows e publicado como audio-v0.7.4-bin-windows-x64-vulkan.zip. Este passo
+# mede a placa com ele. O modelo dele e en/zh: o RTF aqui mede a PLACA, nao o
+# portugues - nao confunda os dois.
+$gpuTest = $null
+if ($Gpu) {
+    Write-Step '7c' 'GPU real e Vulkan (audio.cpp)'
+
+    $gpuTest = [ordered]@{
+        vram_reportada_gb = $null
+        adapters          = @()
+        runtime_supported = $null
+        runtime_installed = $false
+        runtime_version   = $null
+        server_exe        = $null
+        devices_raw       = @()
+        vulkan_gpu        = $false
+        vram_real_gb      = $null
+        model_installed   = $false
+        generated         = $false
+        http              = $null
+        gen_s             = $null
+        audio_s           = $null
+        rtf               = $null
+        verdict           = ''
+    }
+
+    # --- VRAM real: o WMI (Win32_VideoController.AdapterRAM) satura em
+    # 4.294.967.295 e reporta 4 GB em placas de 8. O registro guarda o valor
+    # verdadeiro em HardwareInformation.qwMemorySize.
+    $adapterKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}'
+    try {
+        $subs = Get-ChildItem -Path $adapterKey -ErrorAction SilentlyContinue
+        foreach ($s in $subs) {
+            $pr = Get-ItemProperty -Path $s.PSPath -ErrorAction SilentlyContinue
+            if (-not $pr -or -not $pr.DriverDesc) { continue }
+            $raw = $pr.PSObject.Properties['HardwareInformation.qwMemorySize']
+            $bytes = $null
+            if ($raw -and $null -ne $raw.Value) {
+                $v = $raw.Value
+                if ($v -is [byte[]]) {
+                    # algumas versoes do PowerShell devolvem REG_QWORD como byte[]
+                    $acc = [uint64]0
+                    for ($bi = $v.Length - 1; $bi -ge 0; $bi--) { $acc = ($acc * 256) + [uint64]$v[$bi] }
+                    $bytes = $acc
+                } else {
+                    $bytes = [uint64]$v
+                }
+            }
+            $gb = $null
+            if ($bytes -and $bytes -gt 0) { $gb = [math]::Round([double]$bytes / 1GB, 2) }
+            $gpuTest.adapters += [ordered]@{ name = $pr.DriverDesc; vram_gb = $gb; vram_bytes = $bytes }
+            if ($pr.DriverDesc -match 'Radeon|GeForce|Arc') {
+                if ($gb -and (-not $gpuTest.vram_real_gb -or $gb -gt $gpuTest.vram_real_gb)) {
+                    $gpuTest.vram_real_gb = $gb
+                }
+            }
+        }
+    } catch {
+        Write-Warn2 "nao consegui ler o registro de video: $($_.Exception.Message)"
+    }
+
+    foreach ($a in $gpuTest.adapters) {
+        if ($a.vram_gb) { Write-Info "$($a.name): $($a.vram_gb) GB de VRAM (registro)" }
+        else { Write-Info "$($a.name): VRAM nao informada pelo driver" }
+    }
+    if ($gpuTest.vram_real_gb) {
+        Write-Ok "VRAM real detectada: $($gpuTest.vram_real_gb) GB"
+        Write-Info 'o valor de 4 GB que o WMI devolve e saturacao do campo AdapterRAM, nao a placa'
+    }
+
+    # --- runtime do audio.cpp (binario Vulkan, ~57 MB)
+    $ac = Invoke-Api -Path '/engines/audiocpp/runtime/install/status' -SaveAs 'audiocpp-status.json' -TimeoutSec 20 -Tolerant
+    if ($ac) {
+        $gpuTest.runtime_supported = [bool]$ac.supported
+        $gpuTest.runtime_installed = [bool]$ac.installed
+        Write-Info "runtime audio.cpp: suportado=$($ac.supported) instalado=$($ac.installed) plataforma=$($ac.platform)"
+    } else {
+        Write-Warn2 'endpoint do runtime audio.cpp indisponivel'
+    }
+
+    if ($gpuTest.runtime_supported -and -not $gpuTest.runtime_installed) {
+        Write-Info 'baixando o runtime nativo (audio-v0.7.4-bin-windows-x64-vulkan.zip, ~57 MB)'
+        $startAc = Invoke-Post -Path '/engines/audiocpp/runtime/install' -Body @{} -SaveAs 'audiocpp-install.json' -TimeoutSec 60
+        if ($startAc) {
+            $acDeadline = (Get-Date).AddSeconds(900)
+            $acLast = -1
+            while ((Get-Date) -lt $acDeadline) {
+                Start-Sleep -Seconds 4
+                $st2 = Invoke-Api -Path '/engines/audiocpp/runtime/install/status' -SaveAs 'audiocpp-status.json' -TimeoutSec 20 -Tolerant
+                if (-not $st2) { continue }
+                $job = $st2.job
+                if ($job -and $null -ne $job.progress) {
+                    $pc = [int]([double]$job.progress * 100)
+                    if ($pc -ge $acLast + 20) { Write-Info "runtime: $pc%"; $acLast = $pc }
+                }
+                if ($st2.installed) { $gpuTest.runtime_installed = $true; break }
+                if ($job -and $job.state -eq 'error') {
+                    Write-Fail "instalacao do runtime falhou: $($job.error)"
+                    break
+                }
+            }
+        } else {
+            Write-Warn2 'nao consegui iniciar a instalacao do runtime (veja audiocpp-install.json)'
+        }
+    }
+
+    if ($gpuTest.runtime_installed) {
+        $st3 = Invoke-Api -Path '/engines/audiocpp/runtime/install/status' -SaveAs 'audiocpp-status.json' -TimeoutSec 20 -Tolerant
+        if ($st3) { $gpuTest.runtime_version = $st3.version }
+        Write-Ok "runtime audio.cpp pronto (versao $($gpuTest.runtime_version))"
+
+        # o binario fica no diretorio gerenciado do app
+        $acDirs = @(
+            (Join-Path $env:APPDATA 'OmniVoice\engines\audio-cpp'),
+            (Join-Path $env:APPDATA 'omnivoice\engines\audio-cpp')
+        )
+        $exe = $null
+        foreach ($d in $acDirs) {
+            if (-not (Test-Path $d)) { continue }
+            $hit = Get-ChildItem -Path $d -Recurse -Filter 'audiocpp_server.exe' -ErrorAction SilentlyContinue |
+                   Select-Object -First 1
+            if ($hit) { $exe = $hit.FullName; break }
+        }
+        if ($exe) {
+            $gpuTest.server_exe = $exe
+            Write-Info "binario: $exe"
+            Write-Info 'executando --list-devices (o runtime enumera os backends)'
+            try {
+                $devOut = (& $exe --list-devices 2>&1 | Out-String)
+                $gpuTest.devices_raw = @($devOut -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
+                foreach ($l in $gpuTest.devices_raw) { Write-Info "  $($l.Trim())" }
+                $vkLines = @($gpuTest.devices_raw | Where-Object { $_ -match '(?i)^\s*Vulkan\s*:' })
+                if ($vkLines.Count -gt 0) {
+                    $gpuTest.vulkan_gpu = $true
+                    Write-Ok "Vulkan enumerou $($vkLines.Count) dispositivo(s) nesta maquina"
+                } else {
+                    Write-Warn2 'nenhum dispositivo Vulkan na lista - a GPU nao esta exposta ao runtime'
+                }
+            } catch {
+                Write-Warn2 "falha ao executar --list-devices: $($_.Exception.Message)"
+            }
+        } else {
+            Write-Warn2 'nao encontrei audiocpp_server.exe no diretorio do app'
+        }
+    }
+
+    # --- modelo e geracao: so paga os 4,98 GB se houver Vulkan de verdade
+    if ($gpuTest.vulkan_gpu -and -not $NoModel) {
+        Write-Info 'baixando o bundle Breeze-TTS-2 + Sortformer (4,98 GB, en/zh)'
+        $mStart = Invoke-Post -Path '/models/install' -Body @{ repo_id = 'audio-cpp/audio.cpp-gguf'; target = 'local' } -SaveAs 'audiocpp-model-start.json' -TimeoutSec 30
+        if ($mStart) {
+            $mDeadline = (Get-Date).AddSeconds(3600)
+            $mLast = -1; $mSeen = $false; $mAbsent = 0; $mStartAt = Get-Date
+            while ((Get-Date) -lt $mDeadline) {
+                Start-Sleep -Seconds 10
+                $ms = Invoke-Api -Path '/models/install/status' -SaveAs 'audiocpp-model-status.json' -TimeoutSec 20 -Tolerant
+                if (-not $ms) { continue }
+                $mj = $null
+                if ($ms.jobs) { $mj = @($ms.jobs | Where-Object { $_.repo_id -eq 'audio-cpp/audio.cpp-gguf' }) | Select-Object -First 1 }
+                if ($mj) {
+                    $mSeen = $true; $mAbsent = 0
+                    if ($mj.total_bytes -and ($null -ne $mj.bytes_done)) {
+                        $mb = [math]::Round([double]$mj.bytes_done / 1MB, 0)
+                        $tb = [math]::Round([double]$mj.total_bytes / 1MB, 0)
+                        $pc2 = [int](100 * [double]$mj.bytes_done / [double]$mj.total_bytes)
+                        if ($pc2 -ge $mLast + 10) { Write-Info "modelo: $mb/$tb MB ($pc2%)"; $mLast = $pc2 }
+                    }
+                    if ($mj.state -eq 'failed') { Write-Fail "download falhou: $($mj.error)"; break }
+                } else {
+                    # o job sai da lista quando termina - quem diz se instalou
+                    # de verdade e o catalogo, nao a ausencia do job
+                    $mAbsent++
+                    $el = ((Get-Date) - $mStartAt).TotalSeconds
+                    if (($el -gt 20 -and $mAbsent -ge 2) -or (-not $mSeen -and $el -gt 120)) { break }
+                }
+            }
+            # verificacao independente: o catalogo lista o que esta no disco
+            $cat = Invoke-Api -Path '/models' -SaveAs 'audiocpp-models.json' -TimeoutSec 60 -Tolerant
+            if ($cat -and $cat.models) {
+                $mine = @($cat.models | Where-Object { $_.repo_id -eq 'audio-cpp/audio.cpp-gguf' }) | Select-Object -First 1
+                if ($mine) {
+                    $gpuTest.model_installed = [bool]($mine.installed -and -not $mine.incomplete)
+                    $gbOnDisk = [math]::Round([double]$mine.size_on_disk_bytes / 1GB, 2)
+                    if ($gpuTest.model_installed) {
+                        Write-Ok "modelo instalado: $gbOnDisk GB no disco"
+                    } else {
+                        Write-Warn2 "modelo NAO esta completo ($gbOnDisk GB no disco, incomplete=$($mine.incomplete))"
+                    }
+                }
+            }
+            if (-not $gpuTest.model_installed) { Write-Warn2 'sem modelo completo, a geracao Vulkan sera pulada' }
+        }
+    } elseif (-not $gpuTest.vulkan_gpu) {
+        Write-Info 'modelo de 4,98 GB NAO sera baixado: sem Vulkan enumerado, nao ha o que medir'
+    }
+
+    if ($gpuTest.model_installed -and $apiStatus.reachable -and $curl) {
+        $enText = 'The quick brown fox jumps over the lazy dog. Today is October 23, 2026, and the temperature is 21 degrees.'
+        $enFile = Join-Path $AudioDir 'gpu-test.text.txt'
+        $utf8NoBomG2 = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($enFile, $enText, $utf8NoBomG2)
+        $gWav2 = Join-Path $AudioDir 'gpu-vulkan.wav'
+        $gHdr2 = Join-Path $AudioDir 'gpu-vulkan.headers.txt'
+        Write-Info 'gerando com engine=audiocpp (texto em ingles) e medindo o RTF'
+        $a2 = @(
+            '-s','-S','-o',$gWav2,'-D',$gHdr2,'-w','%{http_code};%{time_total}',
+            '--max-time','3600','-X','POST',"$BaseUrl/generate",
+            '-F',"text=<$enFile",'-F','language=en','-F','seed=42','-F','engine=audiocpp'
+        )
+        $r2 = (& $curl @a2 2>$null | Out-String).Trim()
+        $p2 = $r2 -split ';'
+        $gpuTest.http = $p2[0]
+        if ($gpuTest.http -eq '200') {
+            $gpuTest.generated = $true
+            if (Test-Path $gHdr2) {
+                foreach ($line in ((Get-Content -Path $gHdr2 -Raw -Encoding UTF8) -split "`n")) {
+                    $l2 = $line.Trim()
+                    if ($l2 -match '^(?i)x-gen-time:\s*(.+)$') { $gpuTest.gen_s = [double]$Matches[1] }
+                    if ($l2 -match '^(?i)x-audio-duration:\s*(.+)$') { $gpuTest.audio_s = [double]$Matches[1] }
+                }
+            }
+            if ($gpuTest.gen_s -and $gpuTest.audio_s -and $gpuTest.audio_s -gt 0) {
+                $gpuTest.rtf = [math]::Round($gpuTest.gen_s / $gpuTest.audio_s, 3)
+                Write-Ok "Vulkan: gen=$($gpuTest.gen_s)s audio=$($gpuTest.audio_s)s RTF=$($gpuTest.rtf)"
+            } else {
+                Write-Ok 'Vulkan: HTTP 200, mas sem X-Gen-Time/X-Audio-Duration'
+            }
+        } else {
+            Write-Warn2 "geracao Vulkan falhou: HTTP $($gpuTest.http)"
+            if (Test-Path $gWav2) { Move-Item -LiteralPath $gWav2 -Destination (Join-Path $AudioDir 'gpu-vulkan.error.txt') -Force }
+        }
+    }
+
+    if ($gpuTest.rtf) {
+        $gpuTest.verdict = "Vulkan rodou na placa. RTF=$($gpuTest.rtf) com Breeze-TTS-2 (en). Compare com o RTF 25,9 do OmniVoice em CPU."
+    } elseif ($gpuTest.vulkan_gpu) {
+        $gpuTest.verdict = 'Vulkan enumerou a placa, mas nao houve geracao concluida.'
+    } elseif ($gpuTest.runtime_installed) {
+        $gpuTest.verdict = 'Runtime instalado, porem nenhum dispositivo Vulkan enumerado.'
+    } else {
+        $gpuTest.verdict = 'Runtime audio.cpp nao instalado.'
+    }
+    Write-Info "veredito: $($gpuTest.verdict)"
+
+    $gpuTest | ConvertTo-Json -Depth 6 | Out-File -FilePath (Join-Path $OutDir 'gpu.json') -Encoding UTF8
+}
+
 # ------------------------------------------------------------- [8/10] geracao
 Write-Step '8/10' 'Geracao de voz (corpus pt-BR)'
 
@@ -1329,6 +1595,27 @@ Add-Line "- API respondeu: **$($apiStatus.reachable)**"
 if ($apiStatus.reachable) {
     Add-Line "- Versao: ``$($apiStatus.version)``"
     Add-Line "- Dispositivo efetivo: ``$($apiStatus.device)``"
+}
+if ($Gpu -and $gpuTest) {
+    Add-Line ""
+    Add-Line "## GPU real (Vulkan / audio.cpp)"
+    Add-Line ""
+    Add-Line "- VRAM real pelo registro: **$($gpuTest.vram_real_gb) GB** (WMI reporta 4 GB por saturacao)"
+    foreach ($ad in $gpuTest.adapters) { Add-Line "  - $($ad.name): $($ad.vram_gb) GB" }
+    Add-Line "- Runtime audio.cpp instalado: **$($gpuTest.runtime_installed)** (versao $($gpuTest.runtime_version))"
+    Add-Line "- Vulkan enumerou GPU: **$($gpuTest.vulkan_gpu)**"
+    if ($gpuTest.devices_raw.Count -gt 0) {
+        Add-Line ""
+        Add-Line "Dispositivos vistos pelo runtime:"
+        Add-Line ""
+        Add-Line '```'
+        foreach ($l in $gpuTest.devices_raw) { Add-Line $l.Trim() }
+        Add-Line '```'
+    }
+    Add-Line "- Modelo Breeze-TTS-2 baixado: $($gpuTest.model_installed)"
+    Add-Line "- Geracao de teste: $($gpuTest.generated) (HTTP $($gpuTest.http))"
+    if ($gpuTest.rtf) { Add-Line "- **RTF em Vulkan: $($gpuTest.rtf)** (gen $($gpuTest.gen_s)s / audio $($gpuTest.audio_s)s)" }
+    Add-Line "- Veredito: $($gpuTest.verdict)"
 }
 if ($Gguf -and $ggufInfo) {
     Add-Line ""

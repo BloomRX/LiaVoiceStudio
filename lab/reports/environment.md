@@ -93,7 +93,7 @@ mais. Dados de `evidence/windows/20261023-140732/` (e `140605`, idêntica).
 | RAM | **15,89 GB** total, **6,65 GB livres** na coleta |
 | GPU | **AMD Radeon RX 580 2048SP** — driver **31.0.21925.1001** |
 | GPU (virtual) | Parsec Virtual Display Adapter 0.45.0.0 |
-| VRAM reportada | **~4 GB** (`Win32_VideoController.AdapterRAM = 4.294.967.296`) |
+| VRAM | **8 GB** (informado pelo operador) — o `Win32_VideoController.AdapterRAM` reporta 4.294.967.296 porque o campo é um `uint32` e satura em 4 GB |
 | Vulkan | **funcional** — loader **1.3.250** |
 | Disco | C: 203,7 GB · D: 153,1 GB · F: 29,0 GB · G: 5,2 GB · **J: 112,1 GB livres** |
 | VoiceStudio | **não instalado / não em execução** (`/health` recusou conexão) |
@@ -120,8 +120,15 @@ geração, `gfx803`.** Três consequências independentes:
    (Vega), `gfx1030` (RDNA 2), `gfx1100` (RDNA 3) e `gfx1150/1151` (RDNA 3.5).
    Não há entrada para Polaris — logo, nem o contorno por
    `HSA_OVERRIDE_GFX_VERSION` existe.
-3. **4 GB de VRAM ficam abaixo do piso de 6 GB** que a documentação dá para o
-   OmniVoice. Mesmo que a aceleração funcionasse, o modelo não caberia com folga.
+3. ~~4 GB de VRAM ficam abaixo do piso de 6 GB~~ **— afirmação retirada.** A
+   placa tem **8 GB**, não 4. O valor de 4 GB vinha do `AdapterRAM`, que satura
+   em `2³²−1`. Com 8 GB, o modelo em Q4_K_M (~659 MB) **cabe com folga**, e até
+   Q8_0 (~945 MB) cabe. **Capacidade de VRAM não é obstáculo nesta máquina.**
+
+   Isso **não** reabre o caminho PyTorch (os itens 1 e 2 continuam valendo: ROCm
+   não suporta `gfx803`, e PyTorch não tem backend Vulkan). O que muda é que a
+   ausência do runtime GGML no build do Windows passa a ser o **único** motivo
+   técnico pelo qual não há GPU em português aqui.
 
 **Vulkan, por outro lado, funciona nesta placa.** O loader 1.3.250 respondeu, e
 a RX 580 tem suporte Vulkan maduro no driver Adrenalin.
@@ -253,9 +260,13 @@ o laboratório testaria um runtime com ~2 versões de atraso.
   **medidos**, mas de hardware em repouso, não durante geração.
 - **O VoiceStudio ainda não está instalado na máquina-alvo** (`/health` recusou
   conexão na coleta). As Fases B, C e D continuam pendentes.
-- A VRAM da RX 580 vem de `Win32_VideoController.AdapterRAM`, que satura em
-  ~4 GB. O valor real pode ser 8 GB. Confirmação definitiva virá de
-  `GET /api/settings/gpu-report` com o app instalado.
+- **Correção de fato:** a RX 580 desta máquina tem **8 GB**, não 4. O valor
+  anterior vinha de `Win32_VideoController.AdapterRAM`, que é `uint32` e satura
+  em 4 GB. A leitura correta vem de
+  `HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-...}\<n>\HardwareInformation.qwMemorySize`
+  (`REG_QWORD`) — é o que o `run-lab.bat /gpu` passou a coletar.
+- O `/api/settings/gpu-report` respondeu **404** na v0.5.6; a suspeita de que ele
+  traria a VRAM estava errada.
 - A classificação `gfx803` da RX 580 é arquitetural (Polaris 20), não lida do
   driver. O `gpu-report` trará a identificação feita pelo próprio app.
 - Não há dados de driver de áudio nem de saída de som na coleta.
@@ -265,7 +276,11 @@ o laboratório testaria um runtime com ~2 versões de atraso.
 ```powershell
 # 1. Identidade do hardware
 Get-CimInstance Win32_Processor | Select Name,NumberOfCores
-Get-CimInstance Win32_VideoController | Select Name,DriverVersion,AdapterRAM
+# AdapterRAM satura em 4 GB; a VRAM real esta no registro:
+Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}' |
+  ForEach-Object { Get-ItemProperty $_.PSPath } |
+  Where-Object DriverDesc |
+  Select DriverDesc, @{n='VRAM_GB';e={[math]::Round($_.'HardwareInformation.qwMemorySize'/1GB,2)}}
 Get-CimInstance Win32_OperatingSystem | Select Caption,Version,OSArchitecture
 Get-PSDrive J | Select Used,Free
 

@@ -13,7 +13,7 @@ e seus relatórios. A integração é uma tarefa futura, separada.
 Se você quer **rodar a coleta na sua máquina Windows + AMD**:
 
 ```
-run-lab.bat
+run-lab.bat          (ou: run-lab.bat /gpu  para medir a placa)
 ```
 
 Ele **instala o VoiceStudio** (instalador oficial v0.5.6, SHA-256 conferido),
@@ -74,8 +74,8 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 |---|---|
 | A — investigação estática | ✅ executada |
 | B — instalação | ✅ app + modelo + 1 WAV gerado (falta fechar/reabrir) |
-| C — qualidade de voz | 🟡 10 amostras geradas; falta ouvinte humano |
-| D — AMD / Vulkan | ✅ medido: **RTF 25,9** em regime (10 frases, CPU) |
+| C — qualidade de voz | 🟡 10 amostras geradas + análise acústica objetiva; falta ouvinte humano |
+| D — AMD / Vulkan | ✅ medido: **RTF 25,9** em regime (10 frases, CPU). GGUF ausente no build; `/gpu` pendente |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |

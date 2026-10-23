@@ -146,12 +146,13 @@ com o corpus C6 · encerra sem processo órfão · reinicia e ainda funciona.
 
 ## 4. Fase C — teste de qualidade de voz
 
-**Status: NÃO TESTADO (nenhuma geração de áudio foi produzida).**
+**Status: PARCIALMENTE TESTADO.** As 10 frases do corpus foram geradas na
+máquina-alvo (`evidence/windows/20261023-150843/`, 24 kHz mono) e analisadas por
+sinal (§4.4). O que falta é **o ouvinte**.
 
-**Motivo:** sem saída de áudio, sem GPU, RAM insuficiente para o modelo padrão
-(2.4 GiB de pesos + PyTorch em 3.8 GiB sem swap), e — decisivo — **avaliação
-subjetiva de naturalidade exige um ouvinte humano**. O agente não pode ouvir
-nem julgar naturalidade, prosódia ou sotaque.
+**Motivo da lacuna:** avaliação subjetiva de naturalidade exige um ser humano.
+O agente não pode ouvir nem julgar naturalidade, prosódia ou sotaque — e a
+análise de sinal, por mais útil que seja, não substitui isso.
 
 Isto é uma limitação real, não uma formalidade. **Nenhuma nota de qualidade,
 nenhuma comparação com ElevenLabs e nenhuma afirmação sobre sotaque brasileiro
@@ -204,6 +205,70 @@ Parâmetros exatos a registrar por arquivo: `engine`, `model`, `language=pt`,
 `num_step`, `guidance_scale`, `speed`, `seed`, `postprocess_output`,
 `effect_preset`, `wav_bits`, e o **hash SHA-256 do texto de entrada**.
 
+### 4.4 Análise acústica objetiva das 10 amostras (sem ouvinte humano)
+
+**Status: MEDIDO — mas isto NÃO substitui a audição.** O operador não ouviu os
+arquivos, então a grade subjetiva de §4.2 continua **não preenchida**. Para não
+deixar a Fase C sem nenhuma evidência, rodei uma análise de sinal sobre os 10
+WAVs de `evidence/windows/20261023-150843/` (24 kHz, mono, 16 bits, voz pronta
+`omnivoice`, pt, seed 42). Ferramentas: `numpy` + estimador **YIN** próprio
+(60–500 Hz) para F0 e centroide espectral.
+
+| Arquivo | dur (s) | silêncio | F0 mediano | F0 p10–p90 | saltos de oitava | centroide |
+|---|---|---|---|---|---|---|
+| C1 | 6,01 | 26,5% | **315,8 Hz** | 253–407 | 3,1% | 2015 Hz |
+| C2 | 6,92 | 28,1% | 138,3 | 106–206 | 1,7% | 1643 Hz |
+| C3 | 11,76 | 21,6% | 119,4 | 90–144 | 1,8% | 1528 Hz |
+| C4 | 8,68 | 18,7% | 129,0 | 105–166 | 3,6% | 1483 Hz |
+| C5 | 9,48 | 18,0% | 135,6 | 106–209 | 4,7% | 1499 Hz |
+| C6 | 1,01 | 38,4% | 138,7 | 114–178 | 11,1% | 1958 Hz |
+| C7 | 22,43 | 23,5% | 134,8 | 109–183 | 3,4% | 1636 Hz |
+| C8 | 6,68 | 29,6% | **255,3** | 171–375 | 1,5% | 1914 Hz |
+| C9 | 7,04 | 31,1% | 171,4 | 137–211 | 4,5% | 1647 Hz |
+| C10 | 8,04 | 15,5% | **195,1** | 150–233 | 5,8% | 2015 Hz |
+
+**O que isso prova:**
+
+1. **Nível e higiene do sinal estão corretos.** Pico entre 0,78 e 0,80 (≈ −2 dBFS),
+   **zero amostras em clipping**, nenhum trecho de silêncio anômalo (15–38%, e o
+   maior valor é o C6, que tem 1 segundo). Não há estouro nem arquivo mudo — os
+   defeitos mais comuns de TTS estão ausentes.
+2. **A voz NÃO é estável entre frases.** Todos os 10 arquivos usam a **mesma voz,
+   o mesmo seed e o mesmo motor**. O F0 mediano deveria ficar na mesma faixa.
+   Variou de **119,4 Hz a 315,8 Hz — 2,64×**, ou seja, mais de uma oitava.
+   C1 está uma oitava acima da mediana (315,8 vs ~135 Hz); C8 (255) e C10 (195)
+   ficam no meio; C2–C7 formam o grupo coerente (~120–140 Hz).
+3. **Não é falha do estimador.** A taxa de saltos de oitava ficou entre 1,5% e
+   11,1% — baixa. Se o algoritmo estivesse travando na oitava errada, o p10–p90
+   estaria deslocado inteiro, não apenas alguns quadros. A variação acompanha o
+   arquivo inteiro, o que indica **deriva de locutor entre frases** (a identidade
+   vocal "escorrega" conforme o texto), não ruído de medição.
+4. **O timbre acompanha**: o centroide espectral sobe de ~1.480 Hz (C4) para
+   ~2.015 Hz (C1/C10) — coerente com a percepção esperada de "voz mais fina".
+
+**O que isso NÃO prova:** se soa natural, inteligível, sotaqueado ou agradável.
+F0 alto não é defeito por si: pode ser prosódia correta de uma pergunta. A
+hipótese mais informativa a testar com ouvido humano é se **C1 e C8 parecem
+outra pessoa**. Se parecerem, é o defeito mais grave encontrado no laboratório,
+porque quebraria continuidade de personagem em uso conversacional.
+
+**Reprodutibilidade do corpus:** C6 foi gerado duas vezes (40,31 s e 39,96 s) —
+0,9% de diferença em tempo de geração. Isso mostra que a **duração da síntese** é
+estável; a instabilidade acima é de **conteúdo acústico**, não de desempenho.
+
+**Procedimento para fechar a lacuna:**
+
+```powershell
+# ouvir em ordem, com fones, marcando 1-5 para cada critério de §4.2
+explorer reports\evidence\windows\20261023-150843
+# ou testar a hipótese especifica (C1 e C3 devem soar como a mesma pessoa?)
+ffplay -autoexit C1.wav   # apenas C1, C3, C8, C10
+```
+
+> **Nota de honestidade:** a análise acima é um **substituto parcial**, não uma
+> aprovação de qualidade. Ela detecta instabilidade, clipping e silêncio; não
+> detecta pronúncia errada de "IPTU", "WhatsApp" ou entonação de pergunta.
+
 ---
 
 ## 5. Fase D — AMD, CPU e Vulkan
@@ -217,7 +282,7 @@ A máquina-alvo foi identificada pela coleta de 2026-10-23
 |---|---|
 | CPU | AMD Ryzen 5 5500 — 6C/12T |
 | GPU | AMD Radeon RX 580 2048SP (Polaris 20, `gfx803`), driver 31.0.21925.1001 |
-| VRAM | ~4 GB reportados (CIM satura em 4 GB; confirmar via `gpu-report`) |
+| VRAM | **8 GB** (informado pelo operador). CIM reporta 4 GB por saturação do `AdapterRAM` |
 | RAM | 15,89 GB (6,65 GB livres na coleta) |
 | Vulkan | loader 1.3.250 funcional |
 | VoiceStudio | instalado em 2026-10-23 14:22 (`v0.5.6`), `/health` = `ok`, `device = cpu` |
@@ -358,8 +423,11 @@ O app confirma o que a análise estática previa: `gpu_routing` = `omnivoice —
 
 O que ainda falta da Fase D:
 
-- **Vulkan/GGUF** — o modo `/gguf` ainda não foi executado (as coletas 150602 e
-  150843 não o incluem). Ver §5.2.
+- **Vulkan/GGUF** — ✅ executado em 2026-10-23 15:59: **ausente neste build**
+  (`binary_found=false`). Ver §5.2.
+- **Vulkan de verdade (audio.cpp)** — o modo `/gpu` foi escrito para medir a
+  placa pelo único caminho nativo que o app oferece (runtime Vulkan do
+  `audio.cpp`). Execução `PENDENTE` — precisa de `run-lab.bat /gpu`.
 - **CPU/RAM durante a geração** — o script mede tempo, não amostra consumo.
 - **RTF com voz clonada** vs. voz padrão.
 - **TTFA** (tempo até o primeiro áudio) só existe no caminho de streaming, que o
@@ -396,8 +464,7 @@ O que ainda falta da Fase D:
   3. o binário Windows é distribuído sem `bin/` no repositório (placeholders de
      zero byte), então **não se sabe** se ele inclui o backend Vulkan;
   4. o `quant_map` escolhe Q4_K_M (~659 MB no total) em host sem CUDA/MPS — o
-     que **cabe** nos ~4 GB da RX 580, ao contrário do piso de 6 GB do modelo em
-     PyTorch.
+     que **cabe** nos **8 GB** da RX 580.
   Teste: `run-lab.bat /gguf` — procura o executável em
   `<app>\resources\bin\`, lista as DLL `ggml*`, lê o `reason` de
   `/engines/tts`, gera uma frase com `engine=omnivoice-gguf` (se disponível) e
@@ -412,6 +479,36 @@ O que ainda falta da Fase D:
   afirmado sem medição pareada**.
 - Qual o overhead real de primeira execução (compilação de shaders/grafo).
 
+### 5.2.1 Medir a placa pelo caminho que existe: `run-lab.bat /gpu`
+
+Como o GGUF não vem no build (§5.2), sobrou um caminho **nativo** para fazer a
+RX 580 trabalhar: o `audio.cpp`. O próprio app publica o binário Windows com
+Vulkan (`audio-v0.7.4-bin-windows-x64-vulkan.zip`, 56.818.905 B, com SHA-256
+fixado em `bootstrap.py`) e um modelo que aceita Vulkan — o Breeze-TTS-2.
+
+O passo `[7c]` do `run-lab.bat` (switch `/gpu`) faz isto sozinho:
+
+1. lê a **VRAM real** no registro (`HardwareInformation.qwMemorySize`, tratando
+   o caso `byte[]` de `REG_QWORD` que o PowerShell entrega em `Get-ItemProperty`);
+2. instala o runtime nativo do `audio.cpp` pelo próprio serviço do app
+   (`audiocpp_runtime_install.status()/start_install()` → `installed`, `version`);
+3. roda `audiocpp_server.exe --list-devices` e guarda a saída bruta — é o **único
+   juiz** de se a placa é vista pelo Vulkan (`REGISTRY: idx name`);
+4. **só se** a saída contiver `Vulkan:` baixa o Breeze-TTS-2 (4,98 GB). Se não
+   contiver, não baixa nada — evita 5 GB de disco para um teste fadado a rodar em
+   CPU via llvmpipe (que o bootstrap **descarta** de propósito);
+5. gera frases **em inglês** (o Breeze só fala en/zh — este teste mede a
+   **placa**, não o português) e calcula o RTF por frase;
+6. grava `gpu.json` (hardware, dispositivos, versões, tempos) e uma seção
+   "GPU real (Vulkan / audio.cpp)" no `summary.md`.
+
+**O que este teste NÃO vai responder:** se o português fica mais rápido. Ele
+responde uma pergunta diferente e igualmente necessária à Fase D: *"a RX 580 é
+utilizável por algum motor deste app, hoje, sem compilar nada?"* Se o RTF do
+Breeze em Vulkan ficar próximo do RTF em CPU, o ganho de GPU nesta placa é
+pequeno e a conta de §5.4 (26×) fica definitivamente fechada. Se ficar muito
+menor, existe uma placa utilizável — mas sem modelo em português para colocá-la.
+
 ### 5.4 Por que não vale insistir no Vulkan
 
 Mesmo se o binário GGML fosse compilado com backend Vulkan, a conta não fecha:
@@ -423,7 +520,8 @@ Mesmo se o binário GGML fosse compilado com backend Vulkan, a conta não fecha:
 | Necessário para conversa | **< 1** | < 10 s |
 
 Para uso conversacional seria preciso **~26×** de ganho. Nenhuma GPU Polaris
-entrega isso em decode de TTS — e a RX 580 é de 2017, com ~4 GB.
+entrega isso em decode de TTS — e a RX 580 é de 2017, com **8 GB** (a VRAM não é
+o limite aqui; 8 GB comportam o modelo com folga).
 
 Vulkan mudaria "4,3 min" para "1 min". É uma melhora real para **geração em
 lote**, e irrelevante para **conversa**. Como o caso de uso da Lia é
@@ -611,9 +709,9 @@ implementação, conforme exigido.
 | Fase | Cobertura | Status dominante |
 |---|---|---|
 | A — investigação estática | **Alta** | INSPECIONADO / TESTADO (estático) |
-| B — instalação | **Nula** | NÃO TESTADO (ambiente incompatível) |
-| C — qualidade de voz | **Nula** | NÃO TESTADO (sem áudio, sem ouvido, pesos inacessíveis) |
-| D — AMD/Vulkan | **Parcial** (só documental) | NÃO TESTADO (sem GPU) |
+| B — instalação | **Alta** | ✅ TESTADO na máquina real (v0.5.6, 214.447.484 B, sha256 fixado) |
+| C — qualidade de voz | **Média** | 10 frases geradas + análise acústica (§4.4); **audição humana PENDENTE** |
+| D — AMD/Vulkan | **Alta para o que foi testado** | ✅ RTF 25,9 medido em CPU · GGUF testado e ausente · `/gpu` (audio.cpp/Vulkan) **PENDENTE** |
 | E — API | **Alta** (código **e** runtime) | ✅ TESTADO — backend exercitado por HTTP |
 | F — licenças | **Alta** | ✅ INSPECIONADO + confirmado em runtime |
 | G — integração | **Análise** | — |

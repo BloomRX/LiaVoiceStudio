@@ -22,7 +22,7 @@ execução:
 | System RAM | ✅ `15.9 GB total` | Confere com `machine.json` (15,89 GB) |
 | Disk space | ✅ `190.2 GB free at C:\Users\lucas\AppData\Local\OmniVoice\hf_cache` | **Correção importante:** o cache do Hugging Face fica em `%LOCALAPPDATA%\OmniVoice\hf_cache`, **não** em `%USERPROFILE%\.cache\huggingface`. Medido antes: 203,68 GB → **~13,5 GB já consumidos** por app + ambiente Python |
 | HuggingFace cache writable | ✅ mesmo caminho | idem |
-| **GPU acceleration** | ⚠️ `No compatible GPU detected — running CPU-only` | **Confirma empiricamente** a conclusão da Fase D |
+| **GPU acceleration** | ⚠️ `No compatible GPU detected — running CPU-only` | **Confirma empiricamente** a conclusão da Fase D — "nenhum acelerador *compatível*" (PyTorch/ROCm), não "nenhuma GPU presente" |
 | Active engine routing | ✅ `omnivoice — cpu (no accelerator on this host)` | O roteador escolheu CPU sozinho |
 | Network (huggingface.co) | ✅ `Reachable (78 ms)` | Rede OK — o download de pesos é viável |
 
@@ -49,7 +49,8 @@ exatamente com a análise estática da §2.3 do `executive-summary.md`:
 
 - RX 580 2048SP = Polaris 20 = **`gfx803`** → fora do suporte do ROCm moderno.
 - `ROCM_GFX_OVERRIDES` do projeto não tem entrada para Polaris.
-- ~4 GB de VRAM < piso de 6 GB do OmniVoice.
+- ~~4 GB de VRAM < piso de 6 GB~~ — **retirado**: a placa tem **8 GB** (o valor
+  de 4 GB era saturação do `AdapterRAM` do WMI). VRAM não é o obstáculo.
 
 **Consequência medida:** todo TTS em pt-BR nesta máquina roda no Ryzen 5 5500, em
 CPU. O aviso do app ("~10x slower than GPU") é a expectativa do próprio
