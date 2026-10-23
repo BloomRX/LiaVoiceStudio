@@ -321,6 +321,28 @@ Some-se: o VoiceStudio fixa `audio.cpp` **v0.7.4** enquanto o upstream está em
 respondida** porque a pergunta anterior — "Vulkan serve para o nosso caso?" —
 tem resposta negativa. Medir seria desperdício de tempo.
 
+**E a segunda porta também fechou, agora com fato.** Eu havia levantado a
+hipótese de que o `omnivoice-gguf` (runtime `omnivoice.cpp`, GGML, que faz
+*dlopen* de `ggml-vulkan`) abriria um caminho Vulkan **para português**. O teste
+`/gguf` na máquina-alvo respondeu:
+
+```
+binary_found:     false
+binary:           (nenhum)
+ggml_libs:        []
+engine_available: false
+engine_reason:    A file this engine needs is missing or unreadable.
+```
+
+O build Windows da v0.5.6 **não distribui o binário `omnivoice-tts`, nem as
+bibliotecas `ggml*`**. Não é questão de configuração: o código que ligaria o
+Vulkan não está no pacote. Testar Vulkan exigiria compilar o `omnivoice.cpp`
+(MSVC + Vulkan SDK) — outro projeto, não um ajuste.
+
+Ou seja: **"sem caminho de GPU para português nesta máquina" está confirmado
+duas vezes** — uma por análise (PyTorch não tem Vulkan; o motor GGML não está
+no build) e uma por medição (`device=cpu`, `gpu_routing` em CPU).
+
 ### 4.3 VoxCPM2 / CosyVoice (Apache-2.0, com português)
 
 > ### 🟡 **PRECISA DE MAIS EVIDÊNCIAS** — e é o plano B mais promissor

@@ -286,6 +286,29 @@ vezes seguidas (`20261023-150602`): 40,31 s e 39,96 s — 0,9 % de diferença. O
 outlier de 173 s da coleta `145020` **não se repetiu em 8 execuções** e deve ser
 tratado como incidente isolado daquela sessão, não como variância do motor.
 
+**Instabilidade observada — três mortes não limpas em sequência.** O log do
+backend, ao subir, acusa a execução anterior:
+
+```
+15:06:14 WARNING [run_sentinel] Previous backend run (pid 19144) ended uncleanly
+15:52:09 WARNING [run_sentinel] Previous backend run (pid 18792) ended uncleanly
+15:59:36 WARNING [run_sentinel] Previous backend run (pid 15820) ended uncleanly
+```
+
+As três com **`last activity: generate`**. Não são desligamentos normais: o
+sentinel existe justamente para detectar processo morto sem despedida. E o app
+avisa, em cada carga de modelo, que está no limite:
+
+```
+WARNING [memory_budget] TTS load (omnivoice): Low memory: 1.2–1.9 GB free.
+        Loading a large model here risks the backend being killed by the OS
+```
+
+**Hipótese mais provável: OOM-kill pelo Windows depois da geração**, com os
+pesos ainda residentes. Não está provado — o `last_run_crash.json` não foi
+coletado. Fica como risco aberto para a Lia: um processo que morre sozinho
+depois de gerar áudio precisa de supervisão e retry no lado de quem consome.
+
 **Nota sobre memória (coleta `20261023-155155`).** Durante a geração o próprio
 app emitiu:
 
@@ -358,7 +381,11 @@ O que ainda falta da Fase D:
 
 ### 5.2 O que ainda não se sabe (e só a máquina real responde)
 
-- **OmniVoice GGUF em Vulkan** — a hipótese mais promissora e ainda não testada.
+- **OmniVoice GGUF em Vulkan** — ❌ **TESTADO E ENCERRADO (2026-10-23 15:59).**
+  Resultado em `evidence/windows/20261023-155921/gguf.json`: `binary_found=false`,
+  `ggml_libs=[]`, `engine_available=false`. O build Windows da v0.5.6 não traz o
+  runtime `omnivoice-tts` nem as DLL `ggml*`. Hipótese original abaixo, mantida
+  para registro histórico:
   O motor `omnivoice-gguf` roda `omnivoice.cpp` (GGML), e o docstring do próprio
   backend diz que o binário *"statically links GGML/GGML-cpu and dlopens
   GGML-cuda / GGML-vulkan when present"*. Ou seja: o mesmo truque que faz Qwen
@@ -376,14 +403,31 @@ O que ainda falta da Fase D:
   `/engines/tts`, gera uma frase com `engine=omnivoice-gguf` (se disponível) e
   captura `/system/logs`, onde o `omnivoice-tts` anuncia o dispositivo
   escolhido. Saída em `gguf.json`.
-  **Se o binário não existir no build do Windows**, o teste vira diagnóstico e a
-  medição só é possível compilando `omnivoice.cpp` (`buildvulkan.sh`), o que
-  exigiria MSVC + Vulkan SDK — outra escala de esforço, a autorizar à parte.
+  Foi exatamente o que aconteceu: o teste virou diagnóstico. Medir Vulkan
+  exigiria compilar `omnivoice.cpp` (`buildvulkan.sh`) com MSVC + Vulkan SDK —
+  outra escala de esforço, e sem retorno esperado (ver §5.4).
 - Se a Radeon específica do usuário expõe um dispositivo Vulkan discreto que o
   `audiocpp_server` reconhece.
 - Se o Vulkan do Windows nessa máquina é mais rápido que CPU — **não pode ser
   afirmado sem medição pareada**.
 - Qual o overhead real de primeira execução (compilação de shaders/grafo).
+
+### 5.4 Por que não vale insistir no Vulkan
+
+Mesmo se o binário GGML fosse compilado com backend Vulkan, a conta não fecha:
+
+| Cenário | RTF estimado | Fala de 10 s |
+|---|---|---|
+| CPU (medido) | 25,9 | 4,3 min |
+| Vulkan, ganho típico 3–5× nesta placa | 5–9 | 50–90 s |
+| Necessário para conversa | **< 1** | < 10 s |
+
+Para uso conversacional seria preciso **~26×** de ganho. Nenhuma GPU Polaris
+entrega isso em decode de TTS — e a RX 580 é de 2017, com ~4 GB.
+
+Vulkan mudaria "4,3 min" para "1 min". É uma melhora real para **geração em
+lote**, e irrelevante para **conversa**. Como o caso de uso da Lia é
+conversacional, o investimento (compilar toolchain C++ no Windows) não se paga.
 
 ### 5.3 Protocolo de medição (3+ gerações, primeira separada)
 
