@@ -295,18 +295,24 @@ function Test-Cmd {
 }
 
 function Invoke-Api {
-    <# GET com timeout curto; devolve objeto ou $null e grava o erro. #>
-    param([string]$Path, [string]$SaveAs, [int]$TimeoutSec = 10)
+    <# GET com timeout curto; devolve objeto ou $null e grava o erro.
+       -Tolerant: 404/405 e "nao existe nesta versao", nao falha de contrato. #>
+    param([string]$Path, [string]$SaveAs, [int]$TimeoutSec = 10, [switch]$Tolerant)
     $url = "$BaseUrl$Path"
     try {
         $r = Invoke-RestMethod -Uri $url -Method Get -TimeoutSec $TimeoutSec -ErrorAction Stop
         if ($SaveAs) { $r | ConvertTo-Json -Depth 8 | Out-File -FilePath (Join-Path $ApiDir $SaveAs) -Encoding UTF8 }
         return $r
     } catch {
-        $msg = $_.Exception.Message
+        $msg  = $_.Exception.Message
+        $code = $null
+        try { $code = [int]$_.Exception.Response.StatusCode } catch { }
         if ($SaveAs) {
-            @{ path = $Path; error = $msg; at = (Get-Date).ToString('o') } |
-                ConvertTo-Json | Out-File -FilePath (Join-Path $ApiDir $SaveAs) -Encoding UTF8
+            $rec = [ordered]@{ path = $Path; http = $code; error = $msg; at = (Get-Date).ToString('o') }
+            if ($Tolerant -and ($code -eq 404 -or $code -eq 405)) {
+                $rec.note = 'endpoint nao existe nesta versao - nao e falha'
+            }
+            $rec | ConvertTo-Json | Out-File -FilePath (Join-Path $ApiDir $SaveAs) -Encoding UTF8
         }
         return $null
     }
@@ -389,7 +395,7 @@ try { Start-Transcript -Path $TranscriptPath -Force | Out-Null } catch { }
 
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor White
-Write-Host " VoiceStudio Lab - coleta para Windows + AMD" -ForegroundColor White
+Write-Host " VoiceStudio Lab - instala, testa e coleta (Windows + AMD)" -ForegroundColor White
 Write-Host " Versao do coletor: $ScriptVersion" -ForegroundColor DarkGray
 Write-Host " Inicio: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor DarkGray
 Write-Host " Saida:  $OutDir" -ForegroundColor DarkGray
@@ -651,7 +657,7 @@ if ($appExe) {
         Write-Info 'baixando... (pode levar alguns minutos)'
         $ok = $false
         if (Test-Cmd 'curl.exe') {
-            & curl.exe -L --fail --retry 2 --connect-timeout 30 -o $exePath $url 2>$null
+            & curl.exe -sS -L --fail --retry 2 --connect-timeout 30 -o $exePath $url 2>$null
             if ($LASTEXITCODE -eq 0) { $ok = $true }
         }
         if (-not $ok) {
@@ -755,18 +761,29 @@ if ($appExe) {
     $lastLabel = ''
     $waited    = 0
     while ((Get-Date) -lt $deadline) {
-        try {
-            $h = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -TimeoutSec 3 -ErrorAction Stop
-            if ($h -and $h.status -eq 'ok') { $apiReady = $true; break }
-        } catch { }
-
-        # /health devolve 503 enquanto o backend sobe; /startup/progress
-        # responde sempre e diz em que etapa ele esta.
-        try {
-            $sp = Invoke-RestMethod -Uri "$BaseUrl/startup/progress" -Method Get -TimeoutSec 3 -ErrorAction Stop
-            $lbl = "$($sp.step) $($sp.label)"
-            if ($lbl -ne $lastLabel) { Write-Info "backend subindo: $lbl"; $lastLabel = $lbl }
-        } catch { }
+        # curl em vez de Invoke-RestMethod no polling: durante ~2 min o
+        # backend ainda nao escuta, e cada recusa de conexao do .NET vira um
+        # bloco "TerminatingError" no run.log. O curl devolve so o codigo.
+        if ($curl) {
+            $code = (& $curl -s -o NUL -w '%{http_code}' --max-time 3 "$BaseUrl/health" 2>$null | Out-String).Trim()
+            if ($code -eq '200') { $apiReady = $true; break }
+            if ($code -eq '503') {
+                $spRaw = (& $curl -s --max-time 3 "$BaseUrl/startup/progress" 2>$null | Out-String).Trim()
+                if ($spRaw) {
+                    $sp = $null
+                    try { $sp = $spRaw | ConvertFrom-Json } catch { }
+                    if ($sp -and $sp.step) {
+                        $lbl = "$($sp.step) $($sp.label)"
+                        if ($lbl -ne $lastLabel) { Write-Info "backend subindo: $lbl"; $lastLabel = $lbl }
+                    }
+                }
+            }
+        } else {
+            try {
+                $h = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -TimeoutSec 3 -ErrorAction Stop
+                if ($h -and $h.status -eq 'ok') { $apiReady = $true; break }
+            } catch { }
+        }
 
         Start-Sleep -Seconds 5
         $waited += 5
@@ -808,8 +825,11 @@ if ($apiStatus.reachable) {
     [void](Invoke-Api -Path '/startup/progress' -SaveAs 'startup-progress.json')
     [void](Invoke-Api -Path '/system/info'      -SaveAs 'system-info.json')
     [void](Invoke-Api -Path '/system/diagnose'  -SaveAs 'diagnose.json' -TimeoutSec 30)
-    [void](Invoke-Api -Path '/api/settings/gpu-report' -SaveAs 'gpu-report.json' -TimeoutSec 20)
-    [void](Invoke-Api -Path '/generate/budget'  -SaveAs 'budget.json')
+    [void](Invoke-Api -Path '/settings/compute-device' -SaveAs 'compute-device.json' -TimeoutSec 20)
+    [void](Invoke-Api -Path '/system/model/status'     -SaveAs 'model-status.json' -TimeoutSec 20)
+    # /generate/budget so existe em versoes mais novas que a 0.5.6; o erro
+    # fica registrado mas nao conta como problema.
+    [void](Invoke-Api -Path '/generate/budget' -SaveAs 'budget.json' -TimeoutSec 10 -Tolerant)
     [void](Invoke-Api -Path '/v1/audio/voices'  -SaveAs 'voices.json')
 
     $engines = Invoke-Api -Path '/engines/tts' -SaveAs 'engines.json' -TimeoutSec 20
@@ -939,20 +959,18 @@ if ($NoModel) {
 # gerar; se o endpoint existir, registramos o mesmo aceite que o botao da
 # interface registraria. Nunca e fatal.
 if ($apiStatus.reachable) {
-    $lic = Invoke-Api -Path '/models/licenses/acceptance/k2-fsa/OmniVoice' -SaveAs 'licence-state.json' -TimeoutSec 10
+    # Na 0.5.6 o aceite e por MOTOR (settings_store), em
+    # GET/POST /settings/license. O gate por modelo (/models/licenses) nao
+    # existe nesta versao e /generate nao verifica aceite nenhum - por isso a
+    # geracao funciona sem ninguem clicar em nada.
+    $lic = Invoke-Api -Path '/settings/license/omnivoice' -SaveAs 'licence-state.json' -TimeoutSec 10 -Tolerant
     if ($null -eq $lic) {
-        Write-Info 'sem gate de licenca nesta versao (esperado na v0.5.6)'
-    } elseif ($lic.state -eq 'accepted') {
-        Write-Ok 'licenca do modelo ja aceita'
+        Write-Info 'sem endpoint de aceite de licenca (nada a fazer)'
+    } elseif ($lic.accepted) {
+        Write-Ok 'aceite de licenca do omnivoice registrado no app'
     } else {
-        $fp = $lic.fingerprint
-        if ($fp) {
-            $acc = Invoke-Post -Path '/models/licenses/accept' -Body @{ repo_id = $Model; fingerprint = $fp; accepted = $true } -SaveAs 'licence-accept.json' -TimeoutSec 20
-            if ($acc) { Write-Ok 'aceite de licenca registrado' }
-            else { Write-Warn2 'aceite falhou; aceite manualmente no Model Catalogue' }
-        } else {
-            Write-Info 'fingerprint nao retornado; siga pelo app se for pedido'
-        }
+        # Nao aceitamos por voce: aceitar CC-BY-NC e uma decisao sua.
+        Write-Info 'aceite do omnivoice NAO registrado no app (nao bloqueia a geracao na 0.5.6)'
     }
 }
 

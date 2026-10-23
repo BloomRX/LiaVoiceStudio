@@ -73,9 +73,9 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 | Fase | Status |
 |---|---|
 | A — investigação estática | ✅ executada |
-| B — instalação | 🟡 parcial — app instalado e API no ar; falta gerar WAV |
+| B — instalação | ✅ app + modelo + 1 WAV gerado (falta fechar/reabrir) |
 | C — qualidade de voz | ❌ não testada (depende de ouvinte humano) |
-| D — AMD / Vulkan | ⚠️ `CPU-only` confirmado pelo app; falta medir RTF |
+| D — AMD / Vulkan | 🟡 `CPU-only` + 1ª medição (RTF 39,9, fria); regime pendente |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |

@@ -110,10 +110,11 @@ lab/reports/evidence/windows/<timestamp>/
 ├─ api/
 │  ├─ health.json
 │  ├─ engines.json         <- 17 motores, disponibilidade, device
-│  ├─ gpu-report.json      <- o mais importante para AMD
+│  ├─ compute-device.json  <- device/override que o app escolheu
+│  ├─ model-status.json    <- pesos carregados em memoria?
 │  ├─ diagnose.json
 │  ├─ system-info.json
-│  ├─ budget.json
+│  ├─ budget.json          <- 404 na v0.5.6 (endpoint de versao nova)
 │  ├─ model-install-start.json   <- resposta do POST /models/install
 │  ├─ model-install-status.json  <- estado do download do modelo
 │  ├─ engines-after-install.json <- motores depois de baixar os pesos
@@ -126,11 +127,19 @@ lab/reports/evidence/windows/<timestamp>/
    └─ C6-r1.error.txt      <- se falhou, o corpo do erro
 ```
 
-### Por que `X-OmniVoice-Routing` importa
+### Como saber se rodou em GPU
 
-É o header que **denuncia se a geração usou GPU ou caiu para CPU**. A interface
-do app pode mostrar "GPU ativa" enquanto o motor roda em CPU. O coletor copia
-esse header para cada WAV.
+A v0.5.6 **não** emite o header `X-OmniVoice-Routing` (medição de 2026-10-23: os
+headers do WAV trazem só `X-Audio-Id`, `X-Gen-Time`, `X-Audio-Path`, `X-Seed`,
+`X-Audio-Duration`). A coluna `routing` do `measurements.csv` fica vazia.
+
+O device efetivo então vem de dois lugares, ambos coletados:
+
+- `/health` → `device` (`cpu`, `cuda (…)`, `mps`);
+- `/engines/tts` → `effective_device` de cada motor.
+
+Em versões mais novas existe também `X-OmniVoice-Routing`; o script já o captura
+se aparecer. Na máquina-alvo os dois caminhos dizem `cpu`.
 
 ### Por que o texto vai por arquivo
 

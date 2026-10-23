@@ -20,10 +20,10 @@ Consequência direta:
 | Fase | Status real |
 |---|---|
 | A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
-| B — instalação | 🟡 **Parcialmente testada** — instalada na máquina real pelo `run-lab.bat`: app + Python 3.11.6 respondendo. Falta gerar WAV e testar fechar/reabrir |
+| B — instalação | ✅ **Testada na máquina real** — o `run-lab.bat` instalou (SHA-256 conferido, `/S`), baixou o modelo e gerou WAV. Falta o ciclo fechar/reabrir |
 | C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
-| D — AMD / Vulkan | ⚠️ **Veredito confirmado pelo app** (`CPU-only`) — medição de RTF/TTFA ainda pendente |
-| E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.5) |
+| D — AMD / Vulkan | 🟡 **`CPU-only` confirmado + 1ª medição (RTF 39,9, fria)** — regime permanente pendente |
+| E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.6) |
 | F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
 
@@ -116,7 +116,32 @@ Portanto, para *esta* máquina, a pergunta "Vulkan é mais rápido?" é irreleva
 para português: o único caminho que fala pt-BR é o **Ryzen em CPU**. Detalhe em
 `environment.md` §4.
 
-### 2.4 O melhor motor em português é o de licença mais restritiva
+### 2.4 A primeira geração real: RTF ≈ 40 em CPU
+
+Em 2026-10-23 14:44 a máquina-alvo gerou áudio pela primeira vez
+(`evidence/windows/20261023-144336/`). Corpus C6 ("Tudo certo."), `device=cpu`:
+
+| Métrica | Valor |
+|---|---|
+| duração do áudio | 1,01 s |
+| `X-Gen-Time` no servidor | 40,32 s |
+| tempo de parede | 40,67 s |
+| **RTF** | **39,9** |
+
+À primeira vista, **40 segundos de processamento por segundo de fala**. Uma fala
+de 10 s levaria uns 6,6 min.
+
+**Não trate esse número como o RTF do sistema.** É a primeira geração do
+processo e inclui carregar 2,4 GB de pesos na RAM. O protocolo do laboratório
+sempre separa a primeira execução exatamente por isso. O regime permanente sai
+das execuções 2+ de `/voice` — e é esse número que decide se o VoiceStudio serve
+para conversa ou apenas para geração assíncrona.
+
+O que já se pode afirmar com segurança: **não há GPU no caminho**
+(`omnivoice — cpu (no accelerator on this host)`, dito pelo próprio app), então o
+teto de desempenho é o Ryzen 5 5500, sem margem para "ligar a placa depois".
+
+### 2.5 O melhor motor em português é o de licença mais restritiva
 
 | Motor | pt-BR | Clone | Design | Licença dos pesos |
 |---|---|---|---|---|
@@ -136,7 +161,7 @@ motor padrão e juridicamente incerto quanto ao áudio gerado.**
 Para a Lia, isso significa que a decisão de motor **não é técnica, é de produto**
 — e precisa ser tomada antes de escrever código.
 
-### 2.5 O que o teste real da API acrescentou
+### 2.6 O que o teste real da API acrescentou
 
 O backend Python sobe sozinho, sem o Electron, e foi exercitado por HTTP neste
 sandbox. Detalhes em `evidence/runtime/`. Quatro achados que só o runtime daria:

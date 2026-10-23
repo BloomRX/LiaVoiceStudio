@@ -208,7 +208,8 @@ Parâmetros exatos a registrar por arquivo: `engine`, `model`, `language=pt`,
 
 ## 5. Fase D — AMD, CPU e Vulkan
 
-**Status: hardware identificado; NÃO TESTADO em inferência.**
+**Status: hardware instalado e primeira geração medida (fria). Demais medições
+pendentes.**
 
 A máquina-alvo foi identificada pela coleta de 2026-10-23
 (`evidence/windows/20261023-140732/`):
@@ -220,13 +221,39 @@ A máquina-alvo foi identificada pela coleta de 2026-10-23
 | VRAM | ~4 GB reportados (CIM satura em 4 GB; confirmar via `gpu-report`) |
 | RAM | 15,89 GB (6,65 GB livres na coleta) |
 | Vulkan | loader 1.3.250 funcional |
-| VoiceStudio | **não instalado** — `/health` recusou conexão |
+| VoiceStudio | instalado em 2026-10-23 14:22 (`v0.5.6`), `/health` = `ok`, `device = cpu` |
 
 `gfx803` fica fora do suporte do ROCm moderno **e** fora da tabela
 `ROCM_GFX_OVERRIDES` do projeto. Para esta placa, não existe caminho de GPU para
 PyTorch — nem no Windows, nem no Linux.
 
-O que falta: instalar o app e rodar `/full` para medir CPU de verdade.
+### 5.0 Primeira medição real (2026-10-23 14:44)
+
+`evidence/windows/20261023-144336/`, corpus **C6** ("Tudo certo."), motor
+`omnivoice` ativo, `device=cpu`, seed 42:
+
+| Métrica | Valor |
+|---|---|
+| HTTP | 200 |
+| tempo de parede | 40,67 s |
+| duração do áudio | 1,01 s |
+| `X-Gen-Time` (servidor) | 40,32 s |
+| **RTF** | **39,9** |
+
+**Como ler isso:** RTF ≈ 40 significa **40 s de processamento por segundo de
+áudio**. Uma frase de 10 s levaria ~6,6 min. Isso torna inviável qualquer uso
+conversacional nesta máquina.
+
+**Ressalva obrigatória:** é a **primeira** geração do processo e inclui a carga
+dos pesos do OmniVoice (2,4 GB). O protocolo exige a primeira execução separada
+justamente por isso — este número **não** é o RTF de regime. A medição válida
+sai das execuções 2+ do modo `/voice` (10 frases) ou `/full` (4× C7).
+
+O app confirma o que a análise estática previa: `gpu_routing` = `omnivoice — cpu
+(no accelerator on this host)`. Não há GPU no caminho.
+
+O que falta: rodar `run-lab.bat /voice` (ou `/full`) com o app já aberto e o
+modelo em cache, e comparar a execução 1 com as seguintes.
 
 ### 5.1 O que foi estabelecido por inspeção (com evidência)
 
