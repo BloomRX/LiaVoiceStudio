@@ -208,7 +208,25 @@ Parâmetros exatos a registrar por arquivo: `engine`, `model`, `language=pt`,
 
 ## 5. Fase D — AMD, CPU e Vulkan
 
-**Status: NÃO TESTADO.** Nenhum hardware AMD, nenhum Vulkan, nenhuma GPU.
+**Status: hardware identificado; NÃO TESTADO em inferência.**
+
+A máquina-alvo foi identificada pela coleta de 2026-10-23
+(`evidence/windows/20261023-140732/`):
+
+| Item | Valor |
+|---|---|
+| CPU | AMD Ryzen 5 5500 — 6C/12T |
+| GPU | AMD Radeon RX 580 2048SP (Polaris 20, `gfx803`), driver 31.0.21925.1001 |
+| VRAM | ~4 GB reportados (CIM satura em 4 GB; confirmar via `gpu-report`) |
+| RAM | 15,89 GB (6,65 GB livres na coleta) |
+| Vulkan | loader 1.3.250 funcional |
+| VoiceStudio | **não instalado** — `/health` recusou conexão |
+
+`gfx803` fica fora do suporte do ROCm moderno **e** fora da tabela
+`ROCM_GFX_OVERRIDES` do projeto. Para esta placa, não existe caminho de GPU para
+PyTorch — nem no Windows, nem no Linux.
+
+O que falta: instalar o app e rodar `/full` para medir CPU de verdade.
 
 ### 5.1 O que foi estabelecido por inspeção (com evidência)
 

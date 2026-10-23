@@ -22,7 +22,7 @@ Consequência direta:
 | A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
 | B — instalação | ❌ **Não testada** — instaladores são `.exe`; ambiente incompatível |
 | C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
-| D — AMD / Vulkan | ⚠️ **Parcial** — respondida por documentação + código; **nenhuma medição** |
+| D — AMD / Vulkan | ⚠️ **Hardware identificado, veredito fechado** — sem medição de desempenho (app não instalado) |
 | E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.4) |
 | F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
@@ -83,6 +83,27 @@ no Windows não é suportado**.
 **Resultado líquido:** numa máquina Windows + Radeon, o VoiceStudio com
 português brasileiro é inferência em **CPU**. Sem exceção entre os motores que
 falam português.
+
+### 2.3 Confirmado no hardware real: a RX 580 piora o quadro
+
+A primeira coleta do `run-lab.bat` identificou a máquina: **Ryzen 5 5500,
+15,89 GB de RAM, Windows 11 build 26200, e uma Radeon RX 580 2048SP**.
+
+A RX 580 é **Polaris 20, `gfx803`**. Isso fecha três portas de uma vez:
+
+- **ROCm não suporta `gfx803`** — nem no Linux. O conselho "instale Linux para
+  ter ROCm" da documentação **não** salva esta placa.
+- **A tabela `ROCM_GFX_OVERRIDES` do projeto não tem entrada para Polaris**
+  (cobre gfx900/906, 1030, 1100, 1150/1151). Não existe nem o contorno por
+  `HSA_OVERRIDE_GFX_VERSION`.
+- **~4 GB de VRAM** ficam abaixo do piso de 6 GB do OmniVoice.
+
+**Vulkan funciona** nesta placa (loader 1.3.250 respondeu). Mas o único motor
+Vulkan só fala inglês e chinês.
+
+Portanto, para *esta* máquina, a pergunta "Vulkan é mais rápido?" é irrelevante
+para português: o único caminho que fala pt-BR é o **Ryzen em CPU**. Detalhe em
+`environment.md` §4.
 
 ### 2.3 O melhor motor em português é o de licença mais restritiva
 
@@ -271,9 +292,11 @@ Declaradas para que ninguém as descubra depois:
 1. **Nenhuma geração de áudio foi produzida.** Todo julgamento de qualidade está
    ausente por impossibilidade, não por escolha.
 2. **Nenhuma medição de desempenho.** Nem latência, nem RTF, nem CPU/RAM/GPU.
-3. **Nenhum hardware AMD foi tocado.** As conclusões sobre AMD vêm de
-   documentação oficial + código, não de observação.
-4. **Ambiente não é o alvo.** Linux headless ≠ Windows + Radeon.
+3. **O hardware AMD foi identificado, mas não exercitado.** A coleta do
+   `run-lab.bat` descreveu a máquina (RX 580 / Ryzen 5 5500); nenhuma inferência
+   rodou nela, porque o VoiceStudio **não está instalado**.
+4. **Ambiente de análise não é o alvo.** A inspeção estática e a Fase E rodaram
+   em Linux headless; o alvo é Windows + Radeon.
 5. **`main` não é release estável.** A inspeção foi em `main` (5 commits após
    `v0.5.7-beta.1`). Para testes reais, fixar **v0.5.6**.
 6. **Não houve comparação com ElevenLabs.** A missão proíbe afirmar equivalência

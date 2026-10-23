@@ -80,7 +80,72 @@ O histórico Git foi preservado integralmente (`git clone` completo, sem
 
 ---
 
-## 4. Requisitos de hardware e disco declarados pelo projeto
+## 4. A máquina-alvo real — agora conhecida
+
+Até a primeira coleta do `run-lab.bat`, tudo sobre o alvo era suposição. Não é
+mais. Dados de `evidence/windows/20261023-140732/` (e `140605`, idêntica).
+
+| Item | Valor medido |
+|---|---|
+| Máquina | `LUCASPC` · usuário não-admin |
+| SO | **Windows 11 Home**, build **26200**, 64 bits |
+| CPU | **AMD Ryzen 5 5500** — 6 núcleos / 12 threads, 3,6 GHz, 16 MB L3 |
+| RAM | **15,89 GB** total, **6,65 GB livres** na coleta |
+| GPU | **AMD Radeon RX 580 2048SP** — driver **31.0.21925.1001** |
+| GPU (virtual) | Parsec Virtual Display Adapter 0.45.0.0 |
+| VRAM reportada | **~4 GB** (`Win32_VideoController.AdapterRAM = 4.294.967.296`) |
+| Vulkan | **funcional** — loader **1.3.250** |
+| Disco | C: 203,7 GB · D: 153,1 GB · F: 29,0 GB · G: 5,2 GB · **J: 112,1 GB livres** |
+| VoiceStudio | **não instalado / não em execução** (`/health` recusou conexão) |
+
+O `J:` existe e tem 112 GB livres — o caminho sugerido pela missão é viável.
+
+O `vulkaninfo` emitiu um erro (uma camada de overlay do Epic Games aponta para um
+JSON inexistente). É ruído de terceiros, **não** indica problema de Vulkan: a
+instância subiu em 1.3.250.
+
+### 4.1 A RX 580 muda a conclusão da Fase D — para pior
+
+Isto não estava na análise anterior porque o modelo da GPU era desconhecido.
+
+**A RX 580 (incluindo a variante 2048SP) é Polaris 20, arquitetura GCN de 4ª
+geração, `gfx803`.** Três consequências independentes:
+
+1. **ROCm não suporta `gfx803`.** O suporte a Polaris foi descontinuado nas
+   versões modernas do ROCm. Isso vale **mesmo no Linux** — o caminho
+   "instale Linux para ter ROCm" que a documentação do VoiceStudio sugere
+   **não** resgata esta placa.
+2. **A tabela de remapeamento do próprio projeto não cobre `gfx803`.**
+   `backend/core/device_caps.py` traz `ROCM_GFX_OVERRIDES` para `gfx900/906`
+   (Vega), `gfx1030` (RDNA 2), `gfx1100` (RDNA 3) e `gfx1150/1151` (RDNA 3.5).
+   Não há entrada para Polaris — logo, nem o contorno por
+   `HSA_OVERRIDE_GFX_VERSION` existe.
+3. **4 GB de VRAM ficam abaixo do piso de 6 GB** que a documentação dá para o
+   OmniVoice. Mesmo que a aceleração funcionasse, o modelo não caberia com folga.
+
+**Vulkan, por outro lado, funciona nesta placa.** O loader 1.3.250 respondeu, e
+a RX 580 tem suporte Vulkan maduro no driver Adrenalin.
+
+O problema é o de sempre: **o único motor que usa Vulkan (Breeze-TTS-2) só fala
+inglês e chinês.**
+
+### 4.2 O que isso significa para a Lia, nesta máquina
+
+| Caminho | Situação nesta máquina |
+|---|---|
+| PyTorch em GPU (OmniVoice, VoxCPM2, CosyVoice) | ❌ impossível — Windows não tem ROCm |
+| ROCm no Linux | ❌ `gfx803` fora do suporte |
+| Vulkan via `audio.cpp` | ✅ funciona, mas ❌ não fala português |
+| **CPU (Ryzen 5 5500)** | ✅ **único caminho viável para pt-BR** |
+
+A conclusão da Fase D deixa de ser hipótese e passa a ser fato verificado para
+este hardware: **todo TTS em português vai rodar no Ryzen, em CPU.** O Ryzen 5
+5500 é um CPU decente (6C/12T), então não é inviável — mas a expectativa de
+tempo precisa ser calibrada contra isso, e é o que `run-lab.bat /full` vai medir.
+
+---
+
+## 5. Requisitos de hardware e disco declarados pelo projeto
 
 Estes números vêm da documentação oficial, **não de medição**:
 
@@ -99,7 +164,7 @@ vários GB cada. Ver `docs/engines/disk-usage.md`.
 
 ---
 
-## 5. Suporte a Windows + AMD — o que a documentação e o código dizem
+## 6. Suporte a Windows + AMD — o que a documentação e o código dizem
 
 Esta é a pergunta central da Fase D. O projeto é incomumente explícito, e a
 documentação **confere** com o código:
@@ -133,9 +198,9 @@ padrão OmniVoice) rodam em **CPU**. A única exceção é o `audio.cpp`.
 
 ---
 
-## 6. O caminho `audio.cpp` / Breeze-TTS-2 / Vulkan — verificação
+## 7. O caminho `audio.cpp` / Breeze-TTS-2 / Vulkan — verificação
 
-### 6.1 O suporte a Vulkan existe de fato?
+### 7.1 O suporte a Vulkan existe de fato?
 
 **Sim, no nível de distribuição binária e de código de descoberta.** Três
 confirmações independentes:
@@ -155,7 +220,7 @@ contrato de stdout com registries `CUDA`, `MUSA`, `HIP`, `ROCm`, `Vulkan`,
 (llvmpipe), o que é um detalhe de qualidade relevante: evita "achar" GPU onde só
 existe rasterizador por software.
 
-### 6.2 Mas o Vulkan serve para português?
+### 7.2 Mas o Vulkan serve para português?
 
 **Não.** Este é o achado decisivo da Fase D e ele contradiz a expectativa
 implícita na missão.
@@ -172,7 +237,7 @@ português nesse caminho.
 **Conclusão:** a única rota de aceleração por GPU que funciona numa Radeon no
 Windows **não atende ao caso de uso da Lia**, que é português brasileiro.
 
-### 6.3 Defasagem de versão
+### 7.3 Defasagem de versão
 
 O VoiceStudio fixa `audio.cpp` **v0.7.4**. O upstream está em **v0.9.2**
 (2026-10-15) e já publicou `v0.9.2-drama3-base-small` (2026-10-19), com novas
@@ -181,16 +246,21 @@ o laboratório testaria um runtime com ~2 versões de atraso.
 
 ---
 
-## 7. Limitações deste documento
+## 8. Limitações deste documento
 
-- Nenhuma medição de tempo, memória ou GPU foi feita. Os números da seção 4 são
-  **declarados pelo projeto**, não medidos aqui.
-- Não foi possível verificar se a GPU AMD do usuário está na lista de GFX
-  suportados pelo ROCm do Windows (que a própria doc classifica como
-  "avançado/não suportado").
-- A versão de driver gráfico do usuário é desconhecida.
+- **Nenhuma medição de tempo, memória ou GPU em inferência foi feita.** Os
+  números da seção 5 são **declarados pelo projeto**; os da seção 4 são
+  **medidos**, mas de hardware em repouso, não durante geração.
+- **O VoiceStudio ainda não está instalado na máquina-alvo** (`/health` recusou
+  conexão na coleta). As Fases B, C e D continuam pendentes.
+- A VRAM da RX 580 vem de `Win32_VideoController.AdapterRAM`, que satura em
+  ~4 GB. O valor real pode ser 8 GB. Confirmação definitiva virá de
+  `GET /api/settings/gpu-report` com o app instalado.
+- A classificação `gfx803` da RX 580 é arquitetural (Polaris 20), não lida do
+  driver. O `gpu-report` trará a identificação feita pelo próprio app.
+- Não há dados de driver de áudio nem de saída de som na coleta.
 
-## 8. Como validar de verdade (para a máquina Windows + AMD)
+## 9. Como validar de verdade (para a máquina Windows + AMD)
 
 ```powershell
 # 1. Identidade do hardware
