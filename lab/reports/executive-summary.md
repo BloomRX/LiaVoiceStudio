@@ -320,8 +320,7 @@ Declaradas para que ninguém as descubra depois:
 | `evidence/a1..a6` | inspeção estática (extrações reprodutíveis) |
 | `evidence/runtime/` | Fase E executada contra backend real |
 | `evidence/windows/` | onde `run-lab.bat` grava a coleta da máquina real |
-| `../tools/collect-windows.ps1` | coletor da máquina Windows (lógica auditável) |
-| `../../run-lab.bat` | entrada única na raiz do repositório |
+| `../../run-lab.bat` | **arquivo único** na raiz: coleta + relatórios + git |
 
 ---
 

@@ -32,7 +32,7 @@ Leia [`lab/reports/executive-summary.md`](lab/reports/executive-summary.md).
 
 ```
 LiaVoiceStudio/
-├─ run-lab.bat                 entrada única: coleta + git
+├─ run-lab.bat                 ARQUIVO ÚNICO: coleta + relatórios + git
 │
 ├─ lab/
 │  ├─ reports/                 RELATÓRIOS (o entregável)
@@ -50,8 +50,7 @@ LiaVoiceStudio/
 │  │     └─ windows/           <- o que run-lab.bat produz
 │  │
 │  ├─ tools/
-│  │  ├─ README.md             como usar o coletor
-│  │  └─ collect-windows.ps1   lógica auditável da coleta
+│  │  └─ README.md             guia do run-lab.bat
 │  │
 │  └─ requirements-core.txt    dependências usadas no teste de API
 │
