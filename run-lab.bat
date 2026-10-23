@@ -767,6 +767,76 @@ if ($appExe) {
     at             = (Get-Date).ToString('o')
 } | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $OutDir 'app-install.json') -Encoding UTF8
 
+# ------------------------------------------------- diagnostico da subida do app
+function Write-LaunchDiagnostics {
+    <# Quando a API nao sobe, o relatorio precisa dizer POR QUE. Sem isso a
+       unica saida e esperar 30 min e adivinhar. #>
+    param([string]$Quando)
+
+    Write-Warn2 "diagnostico ($Quando): a API nao respondeu"
+
+    $vsProc = @(Get-Process -Name 'VoiceStudio' -ErrorAction SilentlyContinue)
+    if ($vsProc.Count -eq 0) { Write-Info '  app VoiceStudio: NAO esta rodando (abriu e fechou?)' }
+    else { Write-Info ("  app VoiceStudio: rodando (pid {0}, {1} MB)" -f $vsProc[0].Id, [int]($vsProc[0].WorkingSet64 / 1MB)) }
+
+    $pys = @(Get-Process -Name 'python','pythonw' -ErrorAction SilentlyContinue)
+    if ($pys.Count -eq 0) { Write-Info '  backend python: nenhum processo' }
+    else {
+        foreach ($py in $pys) { Write-Info ("  backend python: pid {0}, {1} MB" -f $py.Id, [int]($py.WorkingSet64 / 1MB)) }
+    }
+
+    $acs = @(Get-Process -Name 'audiocpp_server' -ErrorAction SilentlyContinue)
+    if ($acs.Count -gt 0) {
+        foreach ($a in $acs) { Write-Warn2 ("  audiocpp_server ORFAO: pid {0}, {1} MB - segura o modelo na RAM e pode impedir o app de subir" -f $a.Id, [int]($a.WorkingSet64 / 1MB)) }
+        Write-Info '  para encerrar:  taskkill /IM audiocpp_server.exe /F'
+    }
+
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem
+        $freeMb = [int]($os.FreePhysicalMemory / 1KB)
+        $totalMb = [int]($os.TotalVisibleMemorySize / 1KB)
+        Write-Info "  RAM: $freeMb MB livres de $totalMb MB"
+        if ($freeMb -lt 1500) { Write-Warn2 '  memoria livre abaixo de 1,5 GB: o backend do app (PyTorch) dificilmente sobe assim' }
+    } catch { }
+
+    Write-Info '  maiores consumidores de memoria:'
+    try {
+        Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 8 | ForEach-Object {
+            Write-Info ("    {0,-28} {1,7} MB" -f $_.ProcessName, [int]($_.WorkingSet64 / 1MB))
+        }
+    } catch { }
+
+    # logs do proprio app
+    $logRoots = @(
+        (Join-Path $env:APPDATA 'omnivoice'),
+        (Join-Path $env:APPDATA 'OmniVoice'),
+        (Join-Path $env:LOCALAPPDATA 'omnivoice'),
+        (Join-Path $env:LOCALAPPDATA 'OmniVoice'),
+        (Join-Path $env:APPDATA 'VoiceStudio')
+    )
+    $destDir = Join-Path $OutDir 'app-logs'
+    $copied = 0
+    foreach ($lr in $logRoots) {
+        if (-not (Test-Path $lr)) { continue }
+        $logs = @(Get-ChildItem -Path $lr -Recurse -Include '*.log','*.txt' -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Length -gt 0 -and $_.LastWriteTime -gt (Get-Date).AddHours(-3) } |
+                  Sort-Object LastWriteTime -Descending | Select-Object -First 3)
+        foreach ($lg in $logs) {
+            if ($copied -ge 5) { break }
+            if (-not (Test-Path $destDir)) { New-Item -ItemType Directory -Path $destDir -Force | Out-Null }
+            $safe = ($lg.FullName -replace '[^A-Za-z0-9._-]','_')
+            Copy-Item -LiteralPath $lg.FullName -Destination (Join-Path $destDir $safe) -Force -ErrorAction SilentlyContinue
+            if ($copied -eq 0) {
+                Write-Info "  ultimas linhas de $($lg.FullName):"
+                Get-Content -LiteralPath $lg.FullName -Tail 8 -ErrorAction SilentlyContinue | ForEach-Object { Write-Info "    $_" }
+            }
+            $copied++
+        }
+    }
+    if ($copied -eq 0) { Write-Info '  nenhum log do app modificado na ultima hora' }
+    else { Write-Info "  $copied log(s) copiados para app-logs/" }
+}
+
 # ------------------------------------------- [5/10] iniciar app e esperar API
 Write-Step '5/10' 'Iniciando o VoiceStudio'
 
@@ -793,7 +863,15 @@ if ($appExe) {
         Write-Ok 'o app ja esta rodando'
     }
 
-    Write-Info "esperando /health responder (ate $AppWaitSeconds s)..."
+    # em /gpu a espera e curta de proposito: o [7c]/[7d] medem a placa falando
+    # direto com o audiocpp_server, sem API. Esperar 30 min por um app que nao
+    # sobe so atrasaria a unica medicao que ainda depende dele.
+    $waitBudget = $AppWaitSeconds
+    if ($Gpu) { $waitBudget = [math]::Min($AppWaitSeconds, 420) }
+    if ($waitBudget -lt $AppWaitSeconds) {
+        Write-Info "modo /gpu: espera limitada a $waitBudget s (a medicao da placa nao depende da API)"
+    }
+    Write-Info "esperando /health responder (ate $waitBudget s)..."
     Write-Info ''
     Write-Info 'ATENCAO - existe UM passo que so pode ser feito na janela do app:'
     Write-Info '  1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"'
@@ -802,7 +880,7 @@ if ($appExe) {
     Write-Info '  Nao feche esta janela do cmd.'
     Write-Info ''
 
-    $deadline = (Get-Date).AddSeconds($AppWaitSeconds)
+    $deadline = (Get-Date).AddSeconds($waitBudget)
     $lastLabel = ''
     $waited    = 0
     while ((Get-Date) -lt $deadline) {
@@ -835,6 +913,20 @@ if ($appExe) {
         if ($waited % 60 -eq 0) {
             Write-Info "aguardando a API... ${waited}s. Se a janela do app pedir, clique em 'Instalar ambiente local'."
         }
+        # diagnostico cedo: nao vale passar 30 min sem saber o motivo
+        if ($waited -eq 120 -or $waited -eq 420) {
+            Write-LaunchDiagnostics -Quando "${waited}s"
+        }
+        # se o app ja fechou e nao ha python algum, nao adianta esperar
+        if ($waited -ge 150) {
+            $vsAlive = @(Get-Process -Name 'VoiceStudio' -ErrorAction SilentlyContinue).Count -gt 0
+            $pyAlive = @(Get-Process -Name 'python','pythonw' -ErrorAction SilentlyContinue).Count -gt 0
+            if (-not $vsAlive -and -not $pyAlive) {
+                Write-Warn2 'o app nao esta mais rodando e nao ha backend: encerrando a espera'
+                Write-LaunchDiagnostics -Quando 'app ausente'
+                break
+            }
+        }
     }
 
     if ($apiReady) {
@@ -844,6 +936,7 @@ if ($appExe) {
         Write-Info '  - ninguem clicou em "Instalar ambiente local" na janela do app'
         Write-Info '  - o download do ambiente Python ainda esta em andamento'
         Write-Info '  - o app abriu e fechou por algum erro (veja o log dele)'
+        Write-LaunchDiagnostics -Quando 'final'
         Write-Info 'Deixe o app aberto e rode o .bat de novo: ele reaproveita o que ja baixou.'
     }
 } else {
@@ -1198,6 +1291,7 @@ if ($Gpu) {
         vulkan_gpu        = $false
         vram_real_gb      = $null
         model_installed   = $false
+        model_path        = $null
         engine_available  = $null
         engine_routing    = $null
         engine_reason     = $null
@@ -1293,46 +1387,64 @@ if ($Gpu) {
         $st3 = Invoke-Api -Path '/engines/audiocpp/runtime/install/status' -SaveAs 'audiocpp-status.json' -TimeoutSec 20 -Tolerant
         if ($st3) { $gpuTest.runtime_version = $st3.version }
         Write-Ok "runtime audio.cpp pronto (versao $($gpuTest.runtime_version))"
+    }
 
-        # o binario fica no diretorio gerenciado do app
+    # --- o binario e procurado NO DISCO, nao na API.
+    # Motivo: numa execucao em que a API nao subiu, o runtime ja instalado
+    # continua no disco - e e justamente ele que permite medir a placa sem
+    # depender do app. Procurar so dentro do "if instalado pela API" tornava a
+    # medicao refem de um endpoint que estava fora do ar.
+    if (-not $gpuTest.server_exe) {
         $acDirs = @(
             (Join-Path $env:APPDATA 'OmniVoice\engines\audio-cpp'),
-            (Join-Path $env:APPDATA 'omnivoice\engines\audio-cpp')
+            (Join-Path $env:APPDATA 'omnivoice\engines\audio-cpp'),
+            (Join-Path $env:LOCALAPPDATA 'OmniVoice\engines\audio-cpp'),
+            (Join-Path $env:LOCALAPPDATA 'omnivoice\engines\audio-cpp')
         )
-        $exe = $null
         foreach ($d in $acDirs) {
             if (-not (Test-Path $d)) { continue }
             $hit = Get-ChildItem -Path $d -Recurse -Filter 'audiocpp_server.exe' -ErrorAction SilentlyContinue |
                    Select-Object -First 1
-            if ($hit) { $exe = $hit.FullName; break }
+            if ($hit) { $gpuTest.server_exe = $hit.FullName; break }
         }
-        if ($exe) {
-            $gpuTest.server_exe = $exe
-            Write-Info "binario: $exe"
-            Write-Info 'executando --list-devices (o runtime enumera os backends)'
-            try {
-                # o binario escreve a lista no stderr; sem cmd /c o PowerShell
-                # transforma isso em NativeCommandError e polui a evidencia
-                $devOut = (& cmd /c "`"$exe`" --list-devices 2>&1" | Out-String)
-                $gpuTest.devices_raw = @($devOut -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
-                foreach ($l in $gpuTest.devices_raw) { Write-Info "  $($l.Trim())" }
-                $vkLines = @($gpuTest.devices_raw | Where-Object { $_ -match '(?i)^\s*Vulkan\s*:' })
-                if ($vkLines.Count -gt 0) {
-                    $gpuTest.vulkan_gpu = $true
-                    Write-Ok "Vulkan enumerou $($vkLines.Count) dispositivo(s) nesta maquina"
-                } else {
-                    Write-Warn2 'nenhum dispositivo Vulkan na lista - a GPU nao esta exposta ao runtime'
-                }
-            } catch {
-                Write-Warn2 "falha ao executar --list-devices: $($_.Exception.Message)"
+        if ($gpuTest.server_exe) {
+            $gpuTest.runtime_installed = $true
+            if (-not $gpuTest.runtime_version) {
+                $verDir = Split-Path (Split-Path $gpuTest.server_exe -Parent) -Parent
+                $gpuTest.runtime_version = (Split-Path $verDir -Leaf) + ' (do disco)'
             }
-        } else {
-            Write-Warn2 'nao encontrei audiocpp_server.exe no diretorio do app'
+            Write-Info "runtime encontrado no disco, sem passar pela API"
         }
     }
 
+    if ($gpuTest.server_exe) {
+        Write-Info "binario: $($gpuTest.server_exe)"
+        Write-Info 'executando --list-devices (o runtime enumera os backends)'
+        try {
+            # o binario escreve a lista no stderr; sem cmd /c o PowerShell
+            # transforma isso em NativeCommandError e polui a evidencia
+            $devOut = (& cmd /c "`"$($gpuTest.server_exe)`" --list-devices 2>&1" | Out-String)
+            $gpuTest.devices_raw = @($devOut -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
+            foreach ($l in $gpuTest.devices_raw) { Write-Info "  $($l.Trim())" }
+            $vkLines = @($gpuTest.devices_raw | Where-Object { $_ -match '(?i)^\s*Vulkan\s*:' })
+            if ($vkLines.Count -gt 0) {
+                $gpuTest.vulkan_gpu = $true
+                Write-Ok "Vulkan enumerou $($vkLines.Count) dispositivo(s) nesta maquina"
+            } else {
+                Write-Warn2 'nenhum dispositivo Vulkan na lista - a GPU nao esta exposta ao runtime'
+            }
+        } catch {
+            Write-Warn2 "falha ao executar --list-devices: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Warn2 'audiocpp_server.exe nao encontrado no disco - rode sem /nomodel e com a API no ar'
+    }
+
     # --- modelo e geracao: so paga os 4,98 GB se houver Vulkan de verdade
-    if ($gpuTest.vulkan_gpu -and -not $NoModel) {
+    if ($gpuTest.vulkan_gpu -and -not $NoModel -and -not $apiStatus.reachable) {
+        Write-Info 'API fora do ar: o download do modelo so pode ser disparado por ela'
+        Write-Info 'mas o passo [7d] procura no disco o GGUF ja instalado e mede sem a API'
+    } elseif ($gpuTest.vulkan_gpu -and -not $NoModel) {
         Write-Info 'baixando o bundle Breeze-TTS-2 + Sortformer (4,98 GB, en/zh)'
         $mStart = Invoke-Post -Path '/models/install' -Body @{ repo_id = 'audio-cpp/audio.cpp-gguf'; target = 'local' } -SaveAs 'audiocpp-model-start.json' -TimeoutSec 30
         if ($mStart) {
@@ -1454,7 +1566,7 @@ if ($Gpu) {
 # seed, primeiro pedido descartado. Este passo sobe o audiocpp_server duas
 # vezes (--backend vulkan e --backend cpu) e mede os dois.
 $gpuPair = $null
-if ($Gpu -and $gpuTest -and $gpuTest.server_exe -and $gpuTest.model_installed) {
+if ($Gpu -and $gpuTest -and $gpuTest.server_exe) {
     Write-Step '7d' 'Vulkan vs CPU (medicao pareada)'
 
     function Get-WavInfo {
@@ -1480,21 +1592,34 @@ if ($Gpu -and $gpuTest -and $gpuTest.server_exe -and $gpuTest.model_installed) {
     }
 
     # --- localizar o GGUF instalado (o mesmo arquivo que o app baixou)
+    # O app usa DATA_DIR/hf_cache; o padrao do huggingface_hub e ~/.cache.
+    # Procura nos dois, aceita qualquer quantizacao e fica com o maior arquivo.
     $ggufPath = $null
-    $hubRoot = Join-Path $env:USERPROFILE '.cache\huggingface\hub\models--audio-cpp--audio.cpp-gguf'
-    if (-not (Test-Path $hubRoot)) {
-        $hubRoot = Join-Path $env:LOCALAPPDATA 'OmniVoice\hf_cache\models--audio-cpp--audio.cpp-gguf'
+    $ggufCandidates = @()
+    $hubRoots = @(
+        (Join-Path $env:LOCALAPPDATA 'OmniVoice\hf_cache'),
+        (Join-Path $env:LOCALAPPDATA 'omnivoice\hf_cache'),
+        (Join-Path $env:APPDATA 'OmniVoice\hf_cache'),
+        (Join-Path $env:USERPROFILE '.cache\huggingface\hub')
+    )
+    foreach ($root in $hubRoots) {
+        if (-not (Test-Path $root)) { continue }
+        $hits = Get-ChildItem -Path $root -Recurse -Filter 'breeze-tts-2-*.gguf' -ErrorAction SilentlyContinue
+        if ($hits) { $ggufCandidates += $hits }
     }
-    if (Test-Path $hubRoot) {
-        $hit = Get-ChildItem -Path $hubRoot -Recurse -Filter 'breeze-tts-2-q8_0.gguf' -ErrorAction SilentlyContinue |
-               Select-Object -First 1
-        if ($hit) { $ggufPath = $hit.FullName }
+    if ($ggufCandidates.Count -gt 0) {
+        $best = $ggufCandidates | Sort-Object Length -Descending | Select-Object -First 1
+        $ggufPath = $best.FullName
+        Write-Info ("GGUF encontrado: {0} ({1} GB)" -f $best.Name, [math]::Round($best.Length / 1GB, 2))
     }
 
     if (-not $ggufPath) {
         Write-Warn2 'GGUF do Breeze nao encontrado em cache - medicao pareada pulada'
     } else {
         Write-Info "modelo: $ggufPath"
+        # achado no disco: vale como "instalado", independente da API
+        $gpuTest.model_installed = $true
+        $gpuTest.model_path = $ggufPath
 
         $pairText = 'The quick brown fox jumps over the lazy dog. Today is October 23, 2026, and the temperature is 21 degrees.'
         $pairSha = [System.Security.Cryptography.SHA256]::Create()
@@ -1822,7 +1947,8 @@ if ($Gpu -and $gpuTest) {
         foreach ($l in $gpuTest.devices_raw) { Add-Line $l.Trim() }
         Add-Line '```'
     }
-    Add-Line "- Modelo Breeze-TTS-2 baixado: $($gpuTest.model_installed)"
+    Add-Line "- Modelo Breeze-TTS-2 instalado: $($gpuTest.model_installed)"
+    if ($gpuTest.model_path) { Add-Line "  - arquivo: ``$($gpuTest.model_path)``" }
     Add-Line "- Geracao de teste: $($gpuTest.generated) (HTTP $($gpuTest.http))"
     if ($gpuTest.rtf) { Add-Line "- **RTF em Vulkan: $($gpuTest.rtf)** (gen $($gpuTest.gen_s)s / audio $($gpuTest.audio_s)s)" }
     Add-Line "- Engine audiocpp disponivel depois da instalacao: $($gpuTest.engine_available) (routing $($gpuTest.engine_routing))"
