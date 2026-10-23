@@ -89,6 +89,7 @@ if /i "%A%"=="/nogit"   goto arg_nogit
 if /i "%A%"=="/nopause" goto arg_nopause
 if /i "%A%"=="/noinstall" goto arg_noinstall
 if /i "%A%"=="/nomodel" goto arg_nomodel
+if /i "%A%"=="/gguf" goto arg_gguf
 
 echo %A% | findstr /b /i "/engine:" >nul
 if not errorlevel 1 goto arg_engine
@@ -130,6 +131,11 @@ set "PWSH_ARGS=!PWSH_ARGS! -NoModel"
 shift
 goto parse
 
+:arg_gguf
+set "PWSH_ARGS=!PWSH_ARGS! -Gguf"
+shift
+goto parse
+
 :arg_engine
 set "PWSH_ARGS=!PWSH_ARGS! -Engine %A:/engine:=%"
 shift
@@ -150,6 +156,7 @@ echo    run-lab.bat /engine:audiocpp   forca um motor especifico
 echo    run-lab.bat /url:http://127.0.0.1:3900
 echo    run-lab.bat /noinstall         nao baixa/instala o app (so coleta)
 echo    run-lab.bat /nomodel           nao baixa o modelo OmniVoice
+echo    run-lab.bat /gguf              testa o motor GGUF (caminho Vulkan)
 echo    run-lab.bat /nogit             coleta sem commit/push
 echo    run-lab.bat /nopause           nao espera tecla no final
 echo.
@@ -215,6 +222,11 @@ exit /b %RC%
 .PARAMETER NoModel
     Nao pede o download do modelo OmniVoice.
 
+.PARAMETER Gguf
+    Modo diagnostico do motor omnivoice-gguf (runtime omnivoice.cpp/GGML).
+    Verifica se o binario existe e se ele traz o backend Vulkan, e tenta uma
+    geracao com esse motor. Nao baixa nada alem dos quants que o motor pedir.
+
 .PARAMETER AppWaitSeconds
     Quanto esperar a API subir depois de abrir o app. Padrao 1800.
 
@@ -247,8 +259,10 @@ param(
     [switch]$Full,
     [switch]$NoInstall,
     [switch]$NoModel,
+    [switch]$Gguf,
     [int]$AppWaitSeconds = 1800,
     [string]$Model = 'k2-fsa/OmniVoice',
+    [string]$GgufModel = 'Serveurperso/OmniVoice-GGUF',
     [string]$Engine = "",
     [string]$BaseUrl = "http://127.0.0.1:3900",
     [string]$OutDir = ""
@@ -974,6 +988,163 @@ if ($apiStatus.reachable) {
     }
 }
 
+# --------------------------------------------- [7b] motor GGUF (caminho Vulkan)
+# Por que este passo existe: o motor padrao e PyTorch, e PyTorch nao tem
+# backend Vulkan. O omnivoice-gguf roda omnivoice.cpp (GGML) - a mesma familia
+# do llama.cpp - e o backend dele diz que o binario faz dlopen de ggml-vulkan
+# "quando presente". Se esse for o caso no Windows, existe um caminho de GPU
+# para portugues nesta placa. Este passo mede isso em vez de supor.
+$gguf = $null
+if ($Gguf) {
+    Write-Step '7b' 'Motor GGUF e backend Vulkan'
+
+    $gguf = [ordered]@{
+        binary_found     = $false
+        binary           = $null
+        binary_bytes     = 0
+        placeholders     = @()
+        ggml_libs        = @()
+        engine_available = $false
+        engine_reason    = $null
+        generated        = $false
+        http             = $null
+        gen_s            = $null
+        audio_s          = $null
+        rtf              = $null
+        vulkan_lines     = @()
+        verdict          = ''
+    }
+
+    # O binario fica em <raiz>\bin\omnivoice-tts-<slug>.exe (o modulo resolvel
+    # assim: _REPO_ROOT = engines/omnivoice_gguf/../../..). No app empacotado
+    # a raiz e a pasta resources.
+    $binDirs = @()
+    if ($appExe) {
+        $appRoot = Split-Path -Parent $appExe
+        $binDirs += (Join-Path $appRoot 'resources\bin')
+        $binDirs += (Join-Path $appRoot 'resources\backend\engines\omnivoice_gguf\bin')
+        $binDirs += (Join-Path $appRoot 'bin')
+    }
+    $binDirs += (Join-Path $RepoRoot 'lab\VoiceStudio\bin')
+
+    foreach ($d in $binDirs) {
+        if (-not (Test-Path $d)) { continue }
+        Write-Info "procurando binario em $d"
+        $files = @(Get-ChildItem -Path $d -File -ErrorAction SilentlyContinue)
+        foreach ($f in $files) {
+            if ($f.Name -like 'omnivoice-tts*') {
+                $gguf.binary       = $f.FullName
+                $gguf.binary_bytes = $f.Length
+                if ($f.Length -gt 0) { $gguf.binary_found = $true }
+                else { $gguf.placeholders += $f.FullName }
+            }
+            if ($f.Name -like 'ggml*') {
+                $gguf.ggml_libs += "$($f.Name) ($($f.Length) B)"
+            }
+        }
+    }
+
+    if ($gguf.binary_found) {
+        Write-Ok "binario: $($gguf.binary) ($([math]::Round($gguf.binary_bytes/1MB,1)) MB)"
+    } elseif ($gguf.binary) {
+        Write-Warn2 'o binario existe mas tem 0 byte (placeholder de source checkout)'
+    } else {
+        Write-Warn2 'binario omnivoice-tts NAO encontrado neste build'
+    }
+
+    if ($gguf.ggml_libs.Count -gt 0) {
+        Write-Info ("bibliotecas ggml ao lado do binario: " + ($gguf.ggml_libs -join '; '))
+        $vk = @($gguf.ggml_libs | Where-Object { $_ -like '*vulkan*' })
+        if ($vk.Count -gt 0) { $gguf.vulkan_hint = 'ggml-vulkan presente: ' + ($vk -join '; ') }
+        else { $gguf.vulkan_hint = 'nenhuma biblioteca ggml-vulkan ao lado do binario' }
+    } else {
+        $gguf.vulkan_hint = 'nenhuma biblioteca ggml* encontrada'
+        Write-Info $gguf.vulkan_hint
+    }
+
+    $gg = $null
+    if ($engines -and $engines.backends) {
+        $gg = @($engines.backends | Where-Object { $_.id -eq 'omnivoice-gguf' }) | Select-Object -First 1
+    }
+    if ($gg) {
+        $gguf.engine_available = [bool]$gg.available
+        $gguf.engine_reason    = $gg.reason
+        if ($gg.available) { Write-Ok 'o app considera o omnivoice-gguf disponivel' }
+        else { Write-Warn2 "o app considera indisponivel: $($gg.reason)" }
+    }
+
+    # Tentativa de geracao. Sem a frase pronta, nao ha o que medir.
+    $gCorpus = Join-Path $RepoRoot 'lab\reports\corpus\C6.txt'
+    if ($gguf.engine_available -and $apiStatus.reachable -and $curl -and (Test-Path $gCorpus)) {
+        Write-Info 'gerando uma frase com engine=omnivoice-gguf (baixa os quants na 1a vez)'
+        $gText = (Get-Content -Path $gCorpus -Raw -Encoding UTF8).Trim()
+        $gTxtFile = Join-Path $AudioDir 'C6-gguf.text.txt'
+        $utf8NoBomG = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($gTxtFile, $gText, $utf8NoBomG)
+
+        $gWav = Join-Path $AudioDir 'C6-gguf.wav'
+        $gHdr = Join-Path $AudioDir 'C6-gguf.headers.txt'
+        $gArgs = @(
+            '-s','-S','-o',$gWav,'-D',$gHdr,'-w','%{http_code};%{time_total}',
+            '--max-time','1800','-X','POST',"$BaseUrl/generate",
+            '-F',"text=<$gTxtFile",'-F','language=pt','-F','seed=42',
+            '-F','engine=omnivoice-gguf'
+        )
+        $gRes = (& $curl @gArgs 2>$null | Out-String).Trim()
+        $gParts = $gRes -split ';'
+        $gguf.http = $gParts[0]
+        if ($gParts.Length -gt 1) { $gguf.wall_s = $gParts[1] }
+
+        if ($gguf.http -eq '200') {
+            $gguf.generated = $true
+            $hdrTxt = ''
+            if (Test-Path $gHdr) { $hdrTxt = Get-Content -Path $gHdr -Raw -Encoding UTF8 }
+            foreach ($line in ($hdrTxt -split "`n")) {
+                $l = $line.Trim()
+                if ($l -match '^(?i)x-gen-time:\s*(.+)$')  { $gguf.gen_s   = [double]$Matches[1] }
+                if ($l -match '^(?i)x-audio-duration:\s*(.+)$') { $gguf.audio_s = [double]$Matches[1] }
+            }
+            if ($gguf.gen_s -and $gguf.audio_s -and $gguf.audio_s -gt 0) {
+                $gguf.rtf = [math]::Round($gguf.gen_s / $gguf.audio_s, 3)
+                Write-Ok "GGUF: gen=$($gguf.gen_s)s audio=$($gguf.audio_s)s RTF=$($gguf.rtf)"
+            } else {
+                Write-Ok 'GGUF: HTTP 200, mas sem X-Gen-Time/X-Audio-Duration'
+            }
+        } else {
+            Write-Warn2 "GGUF: HTTP $($gguf.http) - veja C6-gguf.error.txt"
+            if (Test-Path $gWav) {
+                Move-Item -LiteralPath $gWav -Destination (Join-Path $AudioDir 'C6-gguf.error.txt') -Force
+            }
+        }
+    } elseif (-not $gguf.engine_available) {
+        Write-Info 'geracao com GGUF pulada: o motor nao esta disponivel'
+    }
+
+    # O log do backend guarda o stderr do omnivoice-tts, que e onde o runtime
+    # anuncia qual dispositivo escolheu.
+    if ($apiStatus.reachable) {
+        $logs = Invoke-Api -Path '/system/logs?tail=800' -SaveAs 'backend-logs.json' -TimeoutSec 20 -Tolerant
+        if ($logs -and $logs.lines) {
+            $gguf.vulkan_lines = @($logs.lines | Where-Object { $_ -match '(?i)vulkan|ggml|offload|device|backend' } | Select-Object -Last 40)
+            if ($gguf.vulkan_lines.Count -gt 0) {
+                Write-Info "linhas do log sobre dispositivo/backend: $($gguf.vulkan_lines.Count)"
+            }
+        }
+    }
+
+    if ($gguf.rtf) {
+        $gguf.verdict = "GGUF rodou. RTF=$($gguf.rtf). Confira gguf.vulkan_lines para o dispositivo escolhido."
+    } elseif ($gguf.engine_available) {
+        $gguf.verdict = 'Motor disponivel, mas nao houve geracao concluida.'
+    } else {
+        $gguf.verdict = "Motor indisponivel: $($gguf.engine_reason)"
+    }
+    Write-Info "veredito: $($gguf.verdict)"
+
+    $gguf | ConvertTo-Json -Depth 6 |
+        Out-File -FilePath (Join-Path $OutDir 'gguf.json') -Encoding UTF8
+}
+
 # ------------------------------------------------------------- [8/10] geracao
 Write-Step '8/10' 'Geracao de voz (corpus pt-BR)'
 
@@ -1138,6 +1309,25 @@ Add-Line "- API respondeu: **$($apiStatus.reachable)**"
 if ($apiStatus.reachable) {
     Add-Line "- Versao: ``$($apiStatus.version)``"
     Add-Line "- Dispositivo efetivo: ``$($apiStatus.device)``"
+}
+if ($Gguf -and $gguf) {
+    Add-Line ""
+    Add-Line "## Motor GGUF (caminho Vulkan)"
+    Add-Line ""
+    Add-Line "- Binario \`omnivoice-tts\`: **$(if ($gguf.binary_found) { 'presente' } else { 'ausente/inutilizavel' })**"
+    if ($gguf.binary) { Add-Line "- Caminho: \`$($gguf.binary)\` ($($gguf.binary_bytes) bytes)" }
+    Add-Line "- Bibliotecas ggml: $($gguf.vulkan_hint)"
+    Add-Line "- Motor disponivel no app: **$($gguf.engine_available)**"
+    if ($gguf.engine_reason) { Add-Line "- Motivo: $($gguf.engine_reason)" }
+    Add-Line "- Geracao de teste: $($gguf.generated) (HTTP $($gguf.http))"
+    if ($gguf.rtf) { Add-Line "- RTF GGUF: **$($gguf.rtf)** (gen $($gguf.gen_s)s / audio $($gguf.audio_s)s)" }
+    Add-Line "- Veredito: $($gguf.verdict)"
+    if ($gguf.vulkan_lines.Count -gt 0) {
+        Add-Line ""
+        Add-Line '```'
+        foreach ($l in $gguf.vulkan_lines) { Add-Line $l }
+        Add-Line '```'
+    }
 }
 if ($appInfo.data_dirs_found.Count -gt 0) {
     Add-Line "- Diretorios encontrados:"

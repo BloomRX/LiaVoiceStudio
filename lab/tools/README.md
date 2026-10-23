@@ -42,6 +42,7 @@ O arquivo é **ASCII puro** e CRLF, para não depender de code page.
 | `run-lab.bat /full` | Corpus + **4 repetições de C7** | +15–45 min |
 | `run-lab.bat /noinstall` | não baixa nem instala o app | — |
 | `run-lab.bat /nomodel` | não baixa o modelo OmniVoice | — |
+| `run-lab.bat /gguf` | testa o motor `omnivoice-gguf` (caminho Vulkan) | +5–20 min |
 | `run-lab.bat /nogit` | Coleta, sem commit/push | — |
 | `run-lab.bat /engine:audiocpp` | força um motor específico | — |
 | `run-lab.bat /nopause` | não espera tecla no final | — |
@@ -70,6 +71,32 @@ Já existe uma coleta feita com sucesso em
 | 8 | Gera o corpus pt-BR e mede tempo, duração e RTF |
 | 9 | Escreve `summary.md` e os relatórios |
 | 10 | Commit e push na branch do fork |
+
+### O modo `/gguf` — por que ele existe
+
+O motor padrão é PyTorch, e **PyTorch não tem backend Vulkan**: só CUDA, ROCm,
+MPS, XPU e CPU. É por isso que Qwen roda em Vulkan (llama.cpp tem `ggml-vulkan`)
+e o OmniVoice padrão não.
+
+Mas o app também traz o `omnivoice-gguf`, que roda `omnivoice.cpp` — GGML, a
+mesma família do llama.cpp — e cujo backend declara *dlopen* de `ggml-vulkan`
+"quando presente". Se o binário do Windows trouxer esse backend, existe caminho
+de GPU para português nesta placa.
+
+O `/gguf` mede isso em vez de supor:
+
+1. procura `omnivoice-tts-windows-x86_64.exe` em `<app>\resources\bin\` e nas
+   outras raízes plausíveis, e lista tamanho e as bibliotecas `ggml*` ao lado;
+2. lê o `reason` que o app dá para o motor em `/engines/tts`;
+3. se o motor estiver disponível, gera uma frase com `engine=omnivoice-gguf` e
+   mede o RTF;
+4. baixa `/system/logs` e guarda as linhas que falam de dispositivo/backend — é
+   ali que o `omnivoice-tts` anuncia o que escolheu.
+
+Resultado em `gguf.json` e na seção "Motor GGUF (caminho Vulkan)" do
+`summary.md`. **Se o binário não existir, o teste termina em diagnóstico** — e
+nesse caso testar Vulkan exige compilar `omnivoice.cpp` com `buildvulkan.sh`,
+o que é outra escala de esforço.
 
 ### O único clique que não dá para automatizar
 

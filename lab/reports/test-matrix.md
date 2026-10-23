@@ -284,9 +284,14 @@ modelo em cache, e comparar a execução 1 com as seguintes.
   4. o `quant_map` escolhe Q4_K_M (~659 MB no total) em host sem CUDA/MPS — o
      que **cabe** nos ~4 GB da RX 580, ao contrário do piso de 6 GB do modelo em
      PyTorch.
-  Teste: instalar os pesos do `omnivoice-gguf`, gerar uma frase e ler o stderr do
-  `omnivoice-tts` (ele reporta o backend escolhido). Se disser CPU, verificar se
-  existe `ggml-vulkan.dll` ao lado do executável.
+  Teste: `run-lab.bat /gguf` — procura o executável em
+  `<app>\resources\bin\`, lista as DLL `ggml*`, lê o `reason` de
+  `/engines/tts`, gera uma frase com `engine=omnivoice-gguf` (se disponível) e
+  captura `/system/logs`, onde o `omnivoice-tts` anuncia o dispositivo
+  escolhido. Saída em `gguf.json`.
+  **Se o binário não existir no build do Windows**, o teste vira diagnóstico e a
+  medição só é possível compilando `omnivoice.cpp` (`buildvulkan.sh`), o que
+  exigiria MSVC + Vulkan SDK — outra escala de esforço, a autorizar à parte.
 - Se a Radeon específica do usuário expõe um dispositivo Vulkan discreto que o
   `audiocpp_server` reconhece.
 - Se o Vulkan do Windows nessa máquina é mais rápido que CPU — **não pode ser
