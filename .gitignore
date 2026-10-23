@@ -1,14 +1,13 @@
-# VoiceStudio Lab — o clone de terceiros não entra no versionamento desta sessão.
-# Ele é reproduzível: git clone https://github.com/debpalash/VoiceStudio.git lab/VoiceStudio
+# VoiceStudio Lab — o clone de terceiros nao entra no versionamento.
+# Reproduzivel: git clone https://github.com/debpalash/VoiceStudio.git lab/VoiceStudio
 lab/VoiceStudio/
 
-# Artefatos de experimentos locais
-lab/reports/evidence/audio/
+# Ambientes e caches locais (reproduziveis)
+lab/venv/
+lab/data/
 .venv/
 __pycache__/
 *.pyc
 
-# Ambiente Python do laboratório (reproduzível via requirements-core.txt)
-lab/venv/
-lab/data/
-lab/requirements-cpu.txt
+# NUNCA ignorar lab/reports/ — os relatorios e as evidencias sao o entregavel.
+# Inclusive lab/reports/evidence/windows/**, que o run-lab.bat gera.

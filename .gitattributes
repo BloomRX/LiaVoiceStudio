@@ -1,0 +1,7 @@
+# Os scripts de coleta rodam no Windows e exigem CRLF.
+# .bat com LF quebra o parsing de rotulos (goto/label).
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Resto do repositorio: normal
+* text=auto

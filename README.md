@@ -1,1 +1,101 @@
-# LiaVoiceStudio
+# LiaVoiceStudio — laboratório de avaliação do VoiceStudio
+
+Avaliação técnica independente do [VoiceStudio](https://github.com/debpalash/VoiceStudio)
+como possível provedor local de voz para a Lia, em **português brasileiro**.
+
+**Nada aqui integra o VoiceStudio à Lia.** Este repositório contém o laboratório
+e seus relatórios. A integração é uma tarefa futura, separada.
+
+---
+
+## Comece por aqui
+
+Se você quer **rodar a coleta na sua máquina Windows + AMD**:
+
+```
+run-lab.bat
+```
+
+Ele coleta hardware, API e uma frase de teste; escreve o resumo; e faz
+commit + push. Depois leia
+`lab/reports/evidence/windows/<timestamp>/summary.md`.
+
+Detalhes e modos: [`lab/tools/README.md`](lab/tools/README.md)
+
+Se você quer **entender as conclusões**:
+
+Leia [`lab/reports/executive-summary.md`](lab/reports/executive-summary.md).
+
+---
+
+## Estrutura
+
+```
+LiaVoiceStudio/
+├─ run-lab.bat                 entrada única: coleta + git
+│
+├─ lab/
+│  ├─ reports/                 RELATÓRIOS (o entregável)
+│  │  ├─ README.md             índice e regras de leitura
+│  │  ├─ executive-summary.md  conclusão e recomendação
+│  │  ├─ environment.md        hardware, versões, limitações
+│  │  ├─ test-matrix.md        16 configurações + procedimentos
+│  │  ├─ licensing.md          AGPL, CC-BY-NC, dúvidas jurídicas
+│  │  ├─ integration-proposal.md   arquitetura futura (sem implementação)
+│  │  ├─ installation-plan.md  plano com custos e rollback
+│  │  ├─ corpus/               10 frases pt-BR + SHA-256
+│  │  └─ evidence/
+│  │     ├─ a1..a6-*.txt       inspeção estática (Linux)
+│  │     ├─ runtime/           Fase E executada (backend real)
+│  │     └─ windows/           <- o que run-lab.bat produz
+│  │
+│  ├─ tools/
+│  │  ├─ README.md             como usar o coletor
+│  │  └─ collect-windows.ps1   lógica auditável da coleta
+│  │
+│  └─ requirements-core.txt    dependências usadas no teste de API
+│
+└─ README.md                   este arquivo
+```
+
+Pasta de trabalho que **não** é versionada: `lab/VoiceStudio/` (clone de
+terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
+
+---
+
+## Estado da avaliação
+
+| Fase | Status |
+|---|---|
+| A — investigação estática | ✅ executada |
+| B — instalação | ❌ não testada (depende do `run-lab.bat`) |
+| C — qualidade de voz | ❌ não testada (depende de ouvinte humano) |
+| D — AMD / Vulkan | ⚠️ só documental (depende do `run-lab.bat`) |
+| E — API local | ✅ testada em runtime (Linux/CPU) |
+| F — licenças | ✅ executada |
+| G — integração | ✅ análise, sem implementação |
+
+---
+
+## Os três achados que decidem a questão
+
+1. **O caminho Vulkan/AMD funciona — mas só fala inglês e chinês.** `audio.cpp` +
+   Breeze-TTS-2 tem build Vulkan para Windows e o VoiceStudio o fixa com SHA-256,
+   porém `supported_languages == ["en","zh"]`.
+
+2. **No Windows com Radeon, tudo que fala português roda em CPU.** PyTorch no
+   Windows é CUDA-only; ROCm é Linux-only; DirectML não é viável.
+
+3. **O motor com melhor português tem a licença mais restritiva.** OmniVoice traz
+   clone e design em pt-BR, com pesos **CC-BY-NC** — e um segundo portão de
+   licença no tokenizador (`NOASSERTION`).
+
+---
+
+## Regras deste repositório
+
+- Nenhum commit no repositório oficial do VoiceStudio.
+- Nenhuma gravação pessoal enviada a serviço externo.
+- Nenhuma voz de terceiro sem consentimento.
+- Números ausentes nos relatórios estão ausentes **porque não foram medidos**.
+  Onde não há medição, está escrito **NÃO TESTADO**.
