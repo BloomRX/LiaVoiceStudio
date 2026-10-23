@@ -1,0 +1,21 @@
+# Evidence E3 — Testes de erro e formato de resposta (runtime, sandbox)
+# data: 2026-10-23T15:53:09Z
+
+== GET /v1/audio/voices ==
+{"voices":[{"voice_id":"alloy","name":"Alloy","type":"openai_alias","description":"OpenAI 'alloy' voice — maps to the active VoiceStudio engine's default voice.","id":"alloy"},{"voice_id":"ash","name":"Ash","type":"openai_alias","description":"OpenAI 'ash' voice — maps to the active VoiceStudio engine's default voice.","id":"ash"},{"voice_id":"ballad","name":"Ballad","type":"openai_alias","description":"OpenAI 'ballad' voice — maps to the active VoiceStudio engine's default voice.","id":"ballad"},{"voice_id":"cedar","name":"Cedar","type":"openai_alias","description":"OpenAI 'cedar' voice — maps to the active VoiceStudio engine's default voice.","id":"cedar"},{"voice_id":"coral","name
+
+== POST /v1/audio/speech — engine inexistente (esperado: 400) ==
+{"error":{"message":"Unknown model 'nao-existe'. Use an OpenAI TTS model id (tts-1, tts-1-hd, gpt-4o-mini-tts) for the active engine, or a VoiceStudio engine id: omnivoice, cosyvoice, kittentts, mlx-audio, voxcpm2, moss-tts-nano, gpt-sovits, sherpa-onnx, supertonic3, indextts2, omnivoice-gguf, moss-tts-v15, dots-tts, omnivoice-subprocess, pockettts, confucius4-tts, audiocpp. GET /v1/models lists what this server offers.","type":"invalid_request_error","param":"model","code":"model_not_found"},"detail":"Unknown model 'nao-existe'. Use an OpenAI TTS model id (tts-1, tts-1-hd, gpt-4o-mini-tts) for the active engine, or a VoiceStudio engine id: omnivoice, cosyvoice, kittentts, mlx-audio, voxcpm2, moss-tts-nano, gpt-sovits, sherpa-onnx, supertonic3, indextts2, omnivoice-gguf, moss-tts-v15, dots-tts, omnivoice-subprocess, pockettts, confucius4-tts, audiocpp. GET /v1/models lists what this server offers."}
+HTTP 400
+
+== POST /generate — engine inexistente (esperado: 400) ==
+{"detail":"Unknown TTS engine: 'nao-existe'. See GET /engines/tts for the list of valid engine ids."}
+HTTP 400
+
+== POST /generate — engine não instalado (esperado: 400 com motivo) ==
+{"detail":{"code":"model_licence_required","message":"Licence not accepted for Supertone/supertonic-3. Review and accept it in Model Catalogue.","models":[{"repo_id":"Supertone/supertonic-3","license":"openrail","category":"conditions","fingerprint":"v2:46b83a5f9f10e7c97a99b7ec657b50357ce0ad86e0f28e03558771c28d3a77ee"}]}}
+HTTP 403
+
+== POST /generate — audiocpp (Breeze-TTS-2) sem runtime/modelo ==
+{"detail":{"code":"model_licence_required","message":"Licence not accepted for audio-cpp/audio.cpp-gguf. Review and accept it in Model Catalogue.","models":[{"repo_id":"audio-cpp/audio.cpp-gguf","license":"other","category":"noncommercial","fingerprint":"v2:1219fc74513092335bdcce56cb55f02909f23e9c4ee0a2e70c43f4b22dd3317d"}]}}
+HTTP 403

@@ -23,13 +23,18 @@ Consequência direta:
 | B — instalação | ❌ **Não testada** — instaladores são `.exe`; ambiente incompatível |
 | C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
 | D — AMD / Vulkan | ⚠️ **Parcial** — respondida por documentação + código; **nenhuma medição** |
-| E — API local | ✅ **Inspecionada no código** · ❌ **não exercitada em runtime** |
-| F — licenças | ✅ **Executada** com fontes primárias |
+| E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.4) |
+| F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
 
 **Nenhuma medição de latência, RTF, uso de CPU/GPU ou nota de naturalidade é
 apresentada neste relatório.** Isso não é omissão: é a regra da missão, e
 inventar esses números seria pior do que não tê-los.
+
+Uma ressalva sobre a Fase E: o backend **subiu e respondeu** (Linux, CPU), mas
+**nenhum áudio foi gerado**, porque os pesos vêm do Hugging Face e esse domínio
+não é alcançável deste sandbox. "API validada" aqui significa contrato, códigos
+de erro e isolamento — não qualidade de áudio.
 
 ---
 
@@ -98,6 +103,36 @@ motor padrão e juridicamente incerto quanto ao áudio gerado.**
 
 Para a Lia, isso significa que a decisão de motor **não é técnica, é de produto**
 — e precisa ser tomada antes de escrever código.
+
+### 2.4 O que o teste real da API acrescentou
+
+O backend Python sobe sozinho, sem o Electron, e foi exercitado por HTTP neste
+sandbox. Detalhes em `evidence/runtime/`. Quatro achados que só o runtime daria:
+
+**a) O gate de licença é granular e auditável.** `POST /generate` devolve
+**403** com `repo_id`, `license`, `category` e um `fingerprint` versionado. E o
+OmniVoice exige **duas** licenças distintas — a do modelo (CC-BY-NC) **e** a do
+tokenizador (`eustlb/higgs-audio-v2-tokenizer`, `NOASSERTION`). A camada do
+tokenizador que eu havia sinalizado por leitura de documento **é um segundo
+portão efetivo**, não uma nota de rodapé.
+
+**b) O aceite pode ser feito por API.** `POST /models/licenses/accept` com
+`{repo_id, fingerprint, accepted:true}` → `200`. Provisionamento automatizado
+funciona — mas o fingerprint só aparece no 403 ou em `/models/licenses/details`.
+
+**c) A API não diz quais idiomas cada motor fala.** `supported_languages` **não**
+está no payload de `/engines/tts`. A Lia não pode perguntar "este motor fala
+pt-BR?" — precisa de um mapa estático próprio. Isso corrigiu a proposta de
+integração.
+
+**d) Falha de rede ao carregar pesos devolve `500`, não 4xx.**
+`{"error_class":"HF_AUTH_FAILED"}`. A Lia precisa mapear isso para "provedor
+indisponível", nunca para "erro fatal" — senão uma queda de rede vira incidente.
+
+Também corrigi um número que eu havia inferido errado: `GET /generate/budget`
+devolve `executionBase: 600` **mais** `progressExtensionCap: 1800` e
+`cpuAutoCeiling: 7200`. "600 s" é a base, não o teto — um cliente com timeout de
+660 s cortaria gerações legítimas.
 
 ---
 

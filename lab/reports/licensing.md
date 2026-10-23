@@ -98,6 +98,21 @@ O próprio `model_licenses.json` registra, para `k2-fsa/OmniVoice`:
 `review_status: noncommercial`, `commercial_inference: restricted`,
 `commercial_outputs: unknown`.
 
+**Confirmado em runtime (não apenas em documento):** ao tentar gerar áudio, a
+API recusa e exige **duas** aceitações separadas:
+
+```json
+HTTP 403  {"code":"model_licence_required","models":[
+  {"repo_id":"k2-fsa/OmniVoice","license":"CC-BY-NC (version unspecified); Higgs Audio 2; Meta Llama 3",
+   "category":"noncommercial","fingerprint":"v2:d938ea92…"},
+  {"repo_id":"eustlb/higgs-audio-v2-tokenizer","license":"NOASSERTION",
+   "category":"unknown","fingerprint":"v2:6b442e43…"}]}
+```
+
+Ou seja: o tokenizador **não** é uma nota de rodapé jurídica — é um segundo
+portão técnico que bloqueia a geração até ser aceito. E ele está classificado
+como `unknown`, não como permissivo.
+
 **`commercial_outputs: unknown` é o dado mais desconfortável.** A CC-BY-NC
 restringe o uso do *modelo*; se o áudio gerado herda a restrição é uma questão
 jurídica em aberto, e o próprio projeto não a resolve ("unknown"). Para a Lia,

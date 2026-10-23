@@ -7,3 +7,8 @@ lab/reports/evidence/audio/
 .venv/
 __pycache__/
 *.pyc
+
+# Ambiente Python do laboratório (reproduzível via requirements-core.txt)
+lab/venv/
+lab/data/
+lab/requirements-cpu.txt

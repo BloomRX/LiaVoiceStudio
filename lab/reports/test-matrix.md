@@ -266,7 +266,14 @@ recomenda.
 
 ## 6. Fase E — API local e comportamento operacional
 
-**Status: INSPECIONADO (código) — NÃO TESTADO (runtime).**
+**Status: INSPECIONADO (código) + ✅ TESTADO (runtime).**
+
+O backend sobe sem o Electron (`uvicorn main:app`) e foi exercitado por HTTP
+real neste sandbox Linux/CPU. Resultados completos em
+`evidence/runtime/README.md` e `evidence/runtime/e1…e6`.
+
+Ainda **NÃO TESTADO**: geração real de áudio (pesos vêm do Hugging Face, que
+não é alcançável deste sandbox) e comportamento no Windows.
 
 ### 6.1 Superfície relevante (extraída do código)
 
@@ -345,18 +352,40 @@ quando se quer um serviço independente; e o README descreve o Electron como
 derruba a API**. A integração precisa tratar isso como estado normal, não como
 erro — e a Fase G propõe exatamente isso.
 
-### 6.5 Testes de falha a executar (não executados)
+### 6.5 Testes de falha — status após execução em runtime
 
-| Cenário | Ação | Esperado | Status |
+| Cenário | Ação | Resultado observado | Status |
 |---|---|---|---|
-| Serviço indisponível | Requisição com o app fechado | `ECONNREFUSED` / conexão recusada | NÃO TESTADO |
-| Boot em andamento | `GET /health` durante startup | `503` + `step`/`label` | INSPECIONADO |
-| Motor não instalado | `/generate` com `engine` sem pesos | `400` com mensagem do motor | INSPECIONADO |
-| Licença não aceita | `/generate` em modelo gated | `403` (`ensure_engine_licence`) | INSPECIONADO |
-| Referência inválida | `ref_audio` em motor que não clona | `422` antes de carregar modelo | INSPECIONADO |
-| Texto muito longo | `text` acima do chunk | chunking automático em 800 chars | INSPECIONADO |
-| GPU saturada | requisições concorrentes | `429` + `Retry-After` | INSPECIONADO |
-| Porta ocupada | segunda instância | erro de startup, `server.log` | INSPECIONADO |
+| Serviço no ar | `GET /health` | `200 {"status":"ok","device":"cpu","version":"0.5.7-beta.1"}` | ✅ TESTADO |
+| Boot em andamento | `GET /startup/progress` | etapa a etapa com tempo; `status:"ready"` ao fim | ✅ TESTADO |
+| Inventário de hardware | `GET /system/info` | cpu_model, ram, gpu_name vazio, timeouts 300/600 | ✅ TESTADO |
+| Listar motores | `GET /engines/tts` | 17 motores, 2 disponíveis, `reason` em texto claro | ✅ TESTADO |
+| Motor inexistente | `/generate`, `engine=nao-existe` | `400` + lista de ids válidos | ✅ TESTADO |
+| Modelo inexistente (OpenAI) | `/v1/audio/speech` | `400`, `error.code=model_not_found` | ✅ TESTADO |
+| Licença não aceita | `/generate` em modelo gated | `403 model_licence_required` + `fingerprint` | ✅ TESTADO |
+| Aceite headless | `POST /models/licenses/accept` | `200`, grava `accepted_at` | ✅ TESTADO |
+| Pesos inacessíveis | `/generate` após aceite, sem rede | **`500 HF_AUTH_FAILED`** (não é 4xx) | ✅ TESTADO |
+| Isolamento de rede | `ss -lntp` | processo preso a `127.0.0.1:3900` | ✅ TESTADO |
+| Serviço indisponível | requisição com o app fechado | — | NÃO TESTADO (sem Electron) |
+| Motor não instalado | `/generate engine=supertonic3` | `400` + "package not installed" | ✅ TESTADO |
+| Referência inválida | `ref_audio` em motor que não clona | — | NÃO TESTADO |
+| GPU saturada | concorrência | — | NÃO TESTADO |
+| Porta ocupada | segunda instância | — | NÃO TESTADO |
+
+#### Correção importante sobre timeouts
+
+A leitura estática sugeria "600 s de orçamento em CPU". O runtime mostra que
+`GET /generate/budget` devolve:
+
+```json
+{"modelLoad":1200, "queueWait":1800, "executionBase":600,
+ "progressExtensionCap":1800, "cpuAutoCeiling":7200}
+```
+
+`executionBase` é só a base; há extensão por progresso (até 1800 s) e um teto
+automático de CPU de **7200 s**. Um cliente que use timeout fixo de 660 s corta
+gerações que o servidor considera legítimas. **Ler `/generate/budget` e somar as
+parcelas aplicáveis**, não assumir "600 s".
 
 ---
 
@@ -380,8 +409,12 @@ implementação, conforme exigido.
 |---|---|---|
 | A — investigação estática | **Alta** | INSPECIONADO / TESTADO (estático) |
 | B — instalação | **Nula** | NÃO TESTADO (ambiente incompatível) |
-| C — qualidade de voz | **Nula** | NÃO TESTADO (sem áudio, sem ouvido) |
+| C — qualidade de voz | **Nula** | NÃO TESTADO (sem áudio, sem ouvido, pesos inacessíveis) |
 | D — AMD/Vulkan | **Parcial** (só documental) | NÃO TESTADO (sem GPU) |
-| E — API | **Alta** (código), **nula** (runtime) | INSPECIONADO |
-| F — licenças | **Alta** | INSPECIONADO |
+| E — API | **Alta** (código **e** runtime) | ✅ TESTADO — backend exercitado por HTTP |
+| F — licenças | **Alta** | ✅ INSPECIONADO + confirmado em runtime |
 | G — integração | **Análise** | — |
+
+Onde o runtime corrigiu a inspeção: orçamento de tempo (não é 600 s) e ausência
+de `supported_languages` na API. Ambos registrados acima e em
+`evidence/runtime/README.md`.

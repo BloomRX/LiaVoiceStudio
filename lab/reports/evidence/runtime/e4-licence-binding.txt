@@ -1,0 +1,46 @@
+# Evidence E4 — Gate de licença, binding de rede e geração real
+# data: 2026-10-23T15:53:13Z
+
+== POST /models/licenses/details/Supertone/supertonic-3 ==
+{
+    "repo_id": "Supertone/supertonic-3",
+    "info": {
+        "registry_version": "2026-10-09.draft1",
+        "registry_digest": "f539d9775693bc6c975fba88303a1a3063c3cc7656d7db967cd997f0ddd42350",
+        "license": "openrail",
+        "credit": "Supertone/supertonic-3",
+        "notes": "Licence identifier is upstream model-card metadata, not verified permission for this distribution. Component terms and attribution text require review.",
+        "source_url": "https://huggingface.co/Supertone/supertonic-3",
+        "evidence_url": "https://huggingface.co/Supertone/supertonic-3/blob/3cadd1ee6394adea1bd021217a0e650ede09a323/README.md",
+        "evidence_revision": "3cadd1ee6394adea1bd021217a0e650ede09a323",
+        "runtime_revision": "724fb5abbf5502583fb520898d45929e62f02c0b",
+        "review_status": "unreviewed",
+        "commercial_inference": "unknown",
+        "commercial_outputs": "unknown",
+        "component_closure": "incomplete",
+        "readiness": "not_verified",
+        "blockers": [
+            "evidence_revision_mismatch",
+            "component_closure_incomplete",
+            "artifact_manifest_unverified",
+            "terms_unverified",
+            "upstream_access_unverified"
+        ],
+        "enforcement": "disclosure_only",
+        "license_category": "conditions",
+        "variants": [],
+        "evidence_checked_at": "2026-10-03",
+        "evidence_sha256": null,
+        "redistribution": "unknown",
+
+== Aceite de licença via API (provisionamento headless) — POST /models/licenses/accept ==
+{"detail":[{"type":"missing","loc":["body","fingerprint"],"msg":"Field required","input":{"repo_id":"Supertone/supertonic-3","accepted":true}}]}
+HTTP 422
+
+== Binding de rede (prova de isolamento) ==
+LISTEN 0      2048       127.0.0.1:3900       0.0.0.0:*    users:(("python",pid=2926,fd=10))
+LISTEN 0      5       169.254.0.21:3900       0.0.0.0:*                                     
+LISTEN 0      4096         0.0.0.0:111        0.0.0.0:*                                     
+LISTEN 0      4096               *:49983            *:*                                     
+LISTEN 0      4096               *:22               *:*                                     
+LISTEN 0      4096            [::]:111           [::]:*                                     

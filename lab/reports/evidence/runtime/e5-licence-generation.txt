@@ -1,0 +1,17 @@
+# Evidence E5 — Aceite de licença headless e tentativa de geração real
+# data: 2026-10-23T15:53:22Z
+
+## Alcance de rede para os repositórios de pesos
+  huggingface.co -> HTTP 000 (000 = inacessível)
+
+## Aceite da licença via API, com o fingerprint devolvido pelo próprio 403
+{"repo_id":"Supertone/supertonic-3","license":"openrail","category":"conditions","required":true,"accepted":true,"state":"accepted","fingerprint":"v2:46b83a5f9f10e7c97a99b7ec657b50357ce0ad86e0f28e03558771c28d3a77ee","last_action":{"action":"accepted","app_version":"0.5.7-beta.1","at":"2026-10-23T15:53:22+00:00","fingerprint":"v2:46b83a5f9f10e7c97a99b7ec657b50357ce0ad86e0f28e03558771c28d3a77ee"},"accepted_at":"2026-10-23T15:53:22+00:00","changed_fields":[]}
+HTTP 200
+
+## Geração após o aceite — POST /generate (supertonic3, pt)
+{"detail":"TTS engine 'supertonic3' is not available: supertonic package not installed. Install it from Model Catalogue."}
+HTTP 400
+
+## Geração com o motor padrão — POST /generate (omnivoice, pt)
+{"detail":{"code":"model_licence_required","message":"Licence not accepted for k2-fsa/OmniVoice, eustlb/higgs-audio-v2-tokenizer. Review and accept it in Model Catalogue.","models":[{"repo_id":"k2-fsa/OmniVoice","license":"CC-BY-NC (version unspecified); Higgs Audio 2; Meta Llama 3","category":"noncommercial","fingerprint":"v2:d938ea928581624d5732507057d8530320f638ac61426165cbd5abe67be5c9bc"},{"repo_id":"eustlb/higgs-audio-v2-tokenizer","license":"NOASSERTION","category":"unknown","fingerprint":"v2:6b442e435fd392f7726e7c44a30da71bba23adecaabe4c8da725cb30579ecff1"}]}}
+HTTP 403

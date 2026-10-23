@@ -1,0 +1,66 @@
+# Evidence E1 — Testes de API em runtime (sandbox Linux, CPU)
+# data: 2026-10-23T15:52:43Z
+# versão do app: 0.5.7-beta.1
+
+== GET /health ==
+{"status":"ok","device":"cpu","version":"0.5.7-beta.1"}
+HTTP 200
+
+== GET /startup/progress ==
+{"status":"ready","step":null,"label":null,"steps":[{"id":"env_prefs","label":"Restoring settings…","state":"done","t":0.05},{"id":"native_preload","label":"Preparing GPU libraries…","state":"done","t":0.01},{"id":"ml_imports","label":"Loading ML runtime (PyTorch)…","state":"done","t":2.93},{"id":"api_routes","label":"Loading API routes…","state":"done","t":1.7},{"id":"db_migrate","label":"Preparing database…","state":"done","t":0.78},{"id":"services_start","label":"Starting background services…","state":"done","t":0.03}],"elapsed_s":5.59,"error":null,"app_version":"0.5.7-beta.1"}
+HTTP 200
+
+== GET /system/info ==
+{
+    "app_version": "0.5.7-beta.1",
+    "generate_timeout_s": 300.0,
+    "cpu_generate_timeout_s": 600.0,
+    "generate_timeout_shadowed": false,
+    "cpu_generate_timeout_shadowed": false,
+    "code_fingerprint": "",
+    "data_dir": "/home/user/LiaVoiceStudio/lab/data",
+    "outputs_dir": "/home/user/LiaVoiceStudio/lab/data/outputs",
+    "crash_log_path": "/home/user/LiaVoiceStudio/lab/data/crash_log.txt",
+    "idle_timeout_seconds": 900,
+    "model_checkpoint": "k2-fsa/OmniVoice",
+    "asr_model": "Systran/faster-whisper-large-v3",
+    "translate_provider": "argos",
+    "has_hf_token": false,
+    "fast_download": {
+        "xet_installed": true,
+        "xet_active": false,
+        "xet_enabled": false,
+        "xet_version": "1.7.0",
+        "high_performance": false
+    },
+    "device": "cpu",
+    "python": "3.11.2",
+    "platform": "linux",
+    "arch": "x86_64",
+    "os_version": "Linux-6.1.158+-x86_64-with-glibc2.36",
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.60GHz",
+    "cpu_count": 2,
+    "ram_total_gb": 3.8,
+    "gpu_name": "",
+    "vram_total_gb": 0.0,
+    "disk_free_gb": 12.2,
+    "error": null,
+    "ffmpeg_ok": true,
+    "ffmpeg_path": "/home/user/LiaVoiceStudio/lab/venv/lib/python3.11/site-packages/imageio_ffmpeg/binaries/ffmpeg-linux-x86_64-v7.0.2",
+    "proxy_url": "",
+    "share_enabled": false,
+    "share_port": null,
+    "lan_addresses": [],
+
+== GET /generate/budget ==
+{"modelLoad":1200.0,"queueWait":1800.0,"executionBase":600.0,"progressExtensionCap":1800.0,"cpuAutoCeiling":7200.0}
+HTTP 200
+
+== GET /generate/budget?engine=supertonic3 ==
+{
+    "modelLoad": 1200.0,
+    "queueWait": 1800.0,
+    "executionBase": 600.0,
+    "progressExtensionCap": 1800.0,
+    "cpuAutoCeiling": 7200.0
+}

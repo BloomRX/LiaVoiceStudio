@@ -151,20 +151,33 @@ já existe um cliente HTTP.
 
 ### 6.1 Orçamentos de tempo
 
-O próprio backend gerencia orçamentos e os expõe em **`GET /generate/budget`**:
-300 s em hardware acelerado, **600 s em CPU**. Isso é importante — um timeout
-fixo de 30 s no cliente cortaria gerações que o servidor considera normais.
+O backend gerencia orçamentos e os expõe em **`GET /generate/budget`**. Medido
+em runtime (não inferido):
 
-Configurar o cliente **acima** do orçamento do servidor, e o orçamento por
-classe de hardware:
+```json
+{"modelLoad":1200, "queueWait":1800, "executionBase":600,
+ "progressExtensionCap":1800, "cpuAutoCeiling":7200}
+```
 
-| Classe | Timeout cliente sugerido | Justificativa |
+`executionBase: 600` é a base de execução em CPU (300 em hardware acelerado).
+Mas há **extensão por progresso** de até 1800 s e um **teto automático de CPU de
+7200 s**. Somando, uma requisição pode legitimamente durar mais de uma hora em
+hardware lento com texto longo.
+
+Consequência prática: **um timeout fixo é a decisão errada.** Um cliente com
+660 s cortaria gerações que o servidor considera normais e reportaria falha onde
+houve apenas lentidão.
+
+Duas abordagens defensáveis:
+
+| Abordagem | Como | Quando usar |
 |---|---|---|
-| CPU | ~660 s | orçamento do servidor 600 s + folga |
-| GPU | ~360 s | orçamento do servidor 300 s + folga |
-| Primeira geração após boot | +120 s | carga de modelo + possível download |
+| **Adaptativa (preferida)** | Ler `/generate/budget`, somar `executionBase + progressExtensionCap + modelLoad`, usar como timeout | integração de produção |
+| **Por partes** | Não esperar a resposta inteira: usar `/ws/tts` ou `stream=true` e aplicar timeout **por chunk**, não por requisição | conversação |
 
-Sempre ler `/generate/budget` em vez de chutar.
+Para conversação em tempo real, a segunda é obrigatoriamente melhor — o timeout
+passa a medir "o próximo pedaço de áudio não chegou", que é o que o usuário
+sente.
 
 ### 6.2 Matriz de falhas
 
@@ -267,13 +280,24 @@ GET /system/diagnose    -> veredito de hardware
 
 Lógica sugerida, em ordem:
 
-1. `GET /engines/tts` → filtrar por `available == true` **e** idioma compatível
-   com pt-BR.
-2. Se houver mais de um, preferir o que tem `device != "cpu"`.
-3. **Se só houver motor em CPU:** oferecer mesmo assim, mas com expectativa
+1. `GET /engines/tts` → filtrar por `available == true`.
+2. **Filtrar por idioma usando um mapa estático da Lia** — ver aviso abaixo.
+3. Se houver mais de um, preferir o que tem `effective_device != "cpu"`.
+4. **Se só houver motor em CPU:** oferecer mesmo assim, mas com expectativa
    calibrada — e considerar que, para fala curta, a diferença pode ser
    aceitável; para texto longo, não.
-4. Expor a escolha ao usuário. Não decidir silenciosamente.
+5. Expor a escolha ao usuário. Não decidir silenciosamente.
+
+> **Aviso verificado em runtime:** `supported_languages` **não** existe no
+> payload de `/engines/tts`. A Lia **não pode** descobrir pela API se um motor
+> fala português. O mapa de idiomas precisa ser mantido no lado da Lia e
+> revisado a cada atualização do VoiceStudio — é uma dívida de manutenção real,
+> não um detalhe.
+>
+> Alternativa parcial: tentar `POST /generate` com `language=pt` e tratar
+> `422`/`400` de idioma não suportado como "não fala". Funciona, mas custa uma
+> requisição e só é confiável para motores com lista fechada — o OmniVoice
+> aceita `["multi"]` e não rejeita nada.
 
 **No hardware-alvo desta missão (Windows + Radeon), o passo 2 vai sempre
 falhar:** todo motor que fala português está em CPU. A Lia deve saber disso e

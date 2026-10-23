@@ -1,0 +1,42 @@
+# Evidence E2 — GET /engines/tts em runtime (Linux CPU, sandbox)
+# active='supertonic3'  env_override=True  motores=17
+
+id                   disp   device   clone  design  presets  ref          gpu_compat             instalavel
+------------------------------------------------------------------------------------------------------------------------
+omnivoice            True   cpu      True   True    0        best_window  cuda,rocm,mps,cpu      False
+cosyvoice            False  cpu      True   None    0        None         cuda,cpu               True
+kittentts            False  cpu      False  None    8        None         cpu                    False
+mlx-audio            False  cpu      None   None    0        None         mps,cpu                False
+voxcpm2              False  cpu      True   True    0        head         cuda,mps,cpu           True
+moss-tts-nano        False  cpu      True   False   0        None         cuda,cpu               True
+gpt-sovits           False  cpu      True   False   0        None         cuda,cpu               False
+sherpa-onnx          False  cpu      False  None    0        None         cuda,cpu               False
+supertonic3          False  cpu      False  False   7        None         cpu                    True
+indextts2            False  cpu      True   False   0        None         cuda,rocm,cpu          True
+omnivoice-gguf       False  cpu      True   False   0        None         cuda,mps,cpu           False
+moss-tts-v15         False  cpu      True   False   0        None         cuda,rocm,xpu,npu,cpu  False
+dots-tts             False  cpu      True   False   0        None         cuda,cpu               True
+omnivoice-subprocess True   cpu      True   True    0        best_window  cuda,rocm,mps,cpu      False
+pockettts            False  cpu      True   None    0        None         cpu                    True
+confucius4-tts       False  cpu      True   False   0        None         cuda,rocm,xpu,npu,cpu  True
+audiocpp             False  cpu      True   True    0        None         cpu                    False
+
+## Motor indisponível — motivo devolvido pela API (exemplo)
+  cosyvoice: reason="This engine's package isn't installed yet. Install it from Model Catalogue."
+  kittentts: reason="This engine isn't installed yet, and it has no one-click install. Its guide lists the install steps."
+  mlx-audio: reason="This engine doesn't run on this computer's platform. Its guide lists the platforms it supports."
+  voxcpm2: reason="This engine's package isn't installed yet. Install it from Model Catalogue."
+  moss-tts-nano: reason="This engine's package isn't installed yet. Install it from Model Catalogue."
+  gpt-sovits: reason='Engine unavailable. Check installation and configuration.'
+  sherpa-onnx: reason='Engine unavailable. Check installation and configuration.'
+  supertonic3: reason="This engine's package isn't installed yet. Install it from Model Catalogue."
+  indextts2: reason='Engine unavailable. Check installation and configuration.'
+  omnivoice-gguf: reason='A file this engine needs is missing or unreadable. Its guide lists the install steps.'
+  moss-tts-v15: reason='Engine unavailable. Check installation and configuration.'
+  dots-tts: reason='Engine unavailable. Check installation and configuration.'
+  pockettts: reason="This engine's package isn't installed yet. Install it from Model Catalogue."
+  confucius4-tts: reason='Engine unavailable. Check installation and configuration.'
+  audiocpp: reason='A file this engine needs is missing or unreadable. Its guide lists the install steps.'
+
+## Observação: o payload NÃO expõe supported_languages
+  campos expostos: available, default_voice, disk_usage, display_name, docs_url, effective_device, execution_evidence, gpu_compat, hint, id, install_hint, instruct_vocabulary, isolation_mode, last_error, max_ref_seconds, min_vram_gb, one_click_install, preset_voices, reason, ref_strategy, routing_reason, routing_status, setup_snippet, supports_cloning, supports_emotion, supports_voice_design

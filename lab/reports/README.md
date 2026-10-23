@@ -29,7 +29,7 @@ como possível provedor local de voz para a Lia, em português brasileiro.
 
 ---
 
-## Duas regras que valem para tudo aqui
+## Três regras que valem para tudo aqui
 
 **1. Nada foi testado em áudio.** Não houve geração de voz, não houve escuta,
 não houve medição de latência. Todo número ausente está ausente porque não foi
@@ -39,6 +39,12 @@ medido — e está marcado como **NÃO TESTADO**, com o procedimento de validaç
 disco `J:`. O laboratório rodou em Linux headless, sem GPU e sem `J:`. As
 conclusões sobre AMD e Windows vêm de documentação oficial e código-fonte, não
 de observação — e o relatório diz isso em cada ponto onde importa.
+
+**3. A API foi testada de verdade — o áudio não.** A Fase E é a única com
+execução real: o backend subiu (Linux/CPU) e respondeu por HTTP. Isso validou
+contrato, códigos de erro, gate de licença e isolamento de rede. **Não** validou
+geração de áudio: os pesos vêm do Hugging Face, inacessível deste sandbox.
+Resultados em [`evidence/runtime/`](evidence/runtime/README.md).
 
 ---
 

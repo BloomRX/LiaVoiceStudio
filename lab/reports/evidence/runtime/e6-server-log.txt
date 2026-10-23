@@ -1,0 +1,23 @@
+# Evidence E6 — Log do backend (trecho relevante da falha de geração)
+# O comportamento abaixo é o mesmo de uma máquina offline / atrás de proxy
+# corporativo — cenário real de implantação, não apenas artefato do sandbox.
+
+2026-10-23 15:52:39 INFO [omnivoice.api] Startup watchdog armed: thread dump if startup exceeds 300s
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:3900
+
+# ... ao receber POST /generate engine=omnivoice:
+  File "backend/services/model_manager.py", line 2622, in _load
+    return VoiceStudio.from_pretrained(
+  File "omnivoice/models/omnivoice.py", line 517, in from_pretrained
+    model = super().from_pretrained(
+  File "transformers/configuration_utils.py", line 971, in _get_config_dict
+    resolved_config_file = cached_file(
+  File "transformers/utils/hub.py", line 620, in cached_files
+    raise OSError(
+OSError: We couldn't connect to 'https://huggingface.co' to load the files, and
+couldn't find them in the cached files.
+
+# Resposta HTTP ao cliente:
+# 500 {"detail":"VoiceStudio hit an internal error; check the backend log for details.",
+#      "error_class":"HF_AUTH_FAILED","error_type":"OSError"}
