@@ -1,0 +1,10 @@
+﻿{
+    "status":  "idle",
+    "checkpoint":  null,
+    "loaded_at":  null,
+    "sub_stage":  null,
+    "detail":  null,
+    "error":  null,
+    "loaded":  false,
+    "loading":  false
+}

@@ -1,0 +1,7 @@
+﻿{
+    "path":  "/settings/license/omnivoice",
+    "http":  404,
+    "error":  "O servidor remoto retornou um erro: (404) Não Localizado.",
+    "at":  "2026-10-23T17:15:04.7923556-03:00",
+    "note":  "endpoint nao existe nesta versao - nao e falha"
+}

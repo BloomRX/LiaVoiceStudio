@@ -1,0 +1,13 @@
+﻿{
+    "status":  "started",
+    "supported":  true,
+    "installed":  false,
+    "managed":  false,
+    "version":  null,
+    "platform":  "windows-x64",
+    "job":  {
+                "state":  "running",
+                "progress":  0.0,
+                "error":  null
+            }
+}

@@ -1,0 +1,13 @@
+﻿{
+    "supported":  true,
+    "installed":  true,
+    "managed":  true,
+    "version":  "v0.7.4",
+    "platform":  "windows-x64",
+    "job":  {
+                "state":  "done",
+                "progress":  1.0,
+                "error":  null
+            },
+    "install_allowed":  true
+}
