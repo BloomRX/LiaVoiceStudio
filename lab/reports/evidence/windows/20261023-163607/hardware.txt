@@ -1,0 +1,11 @@
+﻿Sistema : Microsoft Windows 11 Home build 26200 (64 bits)
+CPU     : AMD Ryzen 5 5500                                - 6C/12T
+RAM     : 15.89 GB total, 4.7 GB livre
+GPU     : Parsec Virtual Display Adapter - driver 0.45.0.0
+GPU     : AMD Radeon RX 580 2048SP - driver 31.0.21925.1001
+Disco   : C: 190.02 GB livres de 475.95 GB
+Disco   : D: 153.08 GB livres de 465.76 GB
+Disco   : F: 29.04 GB livres de 83.84 GB
+Disco   : G: 5.25 GB livres de 15 GB
+Disco   : J: 112.11 GB livres de 447.12 GB
+Admin   : False

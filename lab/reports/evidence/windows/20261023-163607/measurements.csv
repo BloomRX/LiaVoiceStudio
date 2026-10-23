@@ -1,0 +1,3 @@
+﻿"run","corpus","repetition","engine","http","wall_time_s","audio_duration_s","server_gen_s","rtf","routing","routing_reason","wav_bytes","file"
+"1","C6","1","active","200","42,890505","1.01","42.38","41,96","","","48524","C6-r1.wav"
+"2","C6","2","active","200","42,246211","1.01","41.77","41,356","","","48524","C6-r2.wav"

@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+date: Fri, 23 Oct 2026 19:37:19 GMT
+server: uvicorn
+x-audio-id: f88418ca
+x-gen-time: 42.38
+x-audio-path: f88418ca.wav
+x-seed: 42
+x-audio-duration: 1.01
+content-length: 48524
+content-type: audio/wav
+x-omnivoice-backend: 0.5.6
+

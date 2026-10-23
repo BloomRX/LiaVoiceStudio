@@ -1,0 +1,11 @@
+﻿{
+    "status":  "ready",
+    "checkpoint":  "k2-fsa/OmniVoice",
+    "loaded_at":  "2026-10-23T19:36:50Z",
+    "sub_stage":  "ready",
+    "detail":  "Model ready",
+    "error":  null,
+    "loaded":  true,
+    "loading":  false,
+    "progress":  100
+}
