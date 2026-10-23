@@ -1,0 +1,111 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261023145021
+Nome de Usuário: LUCASPC\lucas
+Executar como Usuário: LUCASPC\lucas
+Nome da Configuração: 
+Computador: LUCASPC (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\lucas\AppData\Local\Temp\voicestudio-lab.ps1
+ID do Processo: 15748
+PSVersion: 5.1.26100.9711
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9711
+BuildVersion: 10.0.26100.9711
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+================================================================
+ VoiceStudio Lab - coleta para Windows + AMD
+ Versao do coletor: 1.0.0
+ Inicio: 2026-10-23 14:50:21
+ Saida:  J:\LiaVoiceStudio\lab\reports\evidence\windows\20261023-145020
+================================================================
+ Modo: RAPIDO (ambiente + API + 1 frase)
+
+[1/10] Verificando pre-requisitos
+     PowerShell 5.1.26100.9711
+     OK    curl disponivel (curl.exe)
+     OK    git 2.52.0.windows.1
+     OK    repositorio git, branch 'arena/e6163ffc-liavoicestudio'
+
+[2/10] Coletando hardware e sistema
+     OK    Microsoft Windows 11 Home build 26200 (64 bits)
+     OK    CPU: AMD Ryzen 5 5500 (6C/12T, AMD)
+     OK    GPU: Parsec Virtual Display Adapter (driver 0.45.0.0)
+     OK    GPU: AMD Radeon RX 580 2048SP (driver 31.0.21925.1001)
+     C: 190.2 GB livres de 475.9 GB
+     D: 153.1 GB livres de 465.8 GB
+     F: 29 GB livres de 83.8 GB
+     G: 5.2 GB livres de 15 GB
+     J: 112.1 GB livres de 447.1 GB
+     OK    vulkaninfo encontrado; resumo salvo
+     OK    Unidade J: presente
+
+[3/10] Procurando a instalacao do VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Roaming\omnivoice
+     OK    encontrado: C:\Users\lucas\AppData\Local\omnivoice
+     nenhum processo VoiceStudio/python rodando
+     porta 3900 nao esta escutando (app fechado?)
+
+[4/10] Instalando o VoiceStudio
+     OK    VoiceStudio ja instalado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     instalacao pulada
+
+[5/10] Iniciando o VoiceStudio
+     iniciando: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     esperando /health responder (ate 1800 s)...
+
+     ATENCAO - existe UM passo que so pode ser feito na janela do app:
+       1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"
+          (Python + dependencias, varios GB). Clique nesse botao.
+       2. quando a API subir, este script continua sozinho.
+       Nao feche esta janela do cmd.
+
+PS>TerminatingError(Invoke-RestMethod): "Impossível conectar-se ao servidor remoto"
+>> TerminatingError(Invoke-RestMethod): "Impossível conectar-se ao servidor remoto"
+PS>TerminatingError(Invoke-RestMethod): "{"status":"starting","step":"native_preload","label":"Preparing GPU libraries…","version":"0.5.6"}"
+     backend subindo: ml_imports Loading ML runtime (PyTorch)â¦
+PS>TerminatingError(Invoke-RestMethod): "{"status":"starting","step":"api_routes","label":"Loading API routes…","version":"0.5.6"}"
+     backend subindo: api_routes Loading API routesâ¦
+PS>TerminatingError(Invoke-RestMethod): "{"status":"starting","step":"services_start","label":"Starting background services…","version":"0.5.6"}"
+     backend subindo:
+     OK    API respondeu: o app esta pronto
+
+[6/10] Sondando a API local
+     OK    /health -> status=ok device=cpu version=0.5.6
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+     OK    17 motores; 3 disponivel(is); ativo='omnivoice'
+       omnivoice -> device=cpu clone=True design=
+       kittentts -> device=cpu clone=False design=
+       omnivoice-subprocess -> device=cpu clone=True design=
+     motor inexistente -> HTTP 400 (esperado 400)
+     modelo inexistente -> HTTP 400 (esperado 400)
+
+[7/10] Garantindo o modelo TTS (k2-fsa/OmniVoice)
+     modelo  : k2-fsa/OmniVoice
+     tamanho : ~2.4 GB no primeiro download
+     origem  : Hugging Face, via o proprio app
+     download iniciado; acompanhando /models/install/status
+     OK    download do modelo concluido
+     OK    omnivoice disponivel (device=cpu)
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Method Not Allowed"}"
+     sem gate de licenca nesta versao (esperado na v0.5.6)
+
+[8/10] Geracao de voz (corpus pt-BR)
+     1 geracao(oes) planejada(s)
+     motor: o que estiver ativo no app
+     [1/1] C6-r1 ...
+OK  173.354788s  audio=1.09s  gen=172.74s  rtf=158.477
+     OK    medicoes salvas em measurements.csv
+
+[9/10] Escrevendo o resumo
+     OK    summary.md escrito
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261023145419
+**********************
