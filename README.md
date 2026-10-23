@@ -16,9 +16,14 @@ Se você quer **rodar a coleta na sua máquina Windows + AMD**:
 run-lab.bat
 ```
 
-Ele coleta hardware, API e uma frase de teste; escreve o resumo; e faz
+Ele **instala o VoiceStudio** (instalador oficial v0.5.6, SHA-256 conferido),
+**baixa o modelo OmniVoice**, gera uma frase de teste, escreve o resumo e faz
 commit + push. Depois leia
 `lab/reports/evidence/windows/<timestamp>/summary.md`.
+
+> Um clique é inevitável: na primeira execução o app pede **"Instalar ambiente
+> local"** (Python + dependências). Clique uma vez — o `.bat` espera e continua
+> sozinho. Explicação em [`lab/tools/README.md`](lab/tools/README.md).
 
 Detalhes e modos: [`lab/tools/README.md`](lab/tools/README.md)
 
@@ -32,7 +37,7 @@ Leia [`lab/reports/executive-summary.md`](lab/reports/executive-summary.md).
 
 ```
 LiaVoiceStudio/
-├─ run-lab.bat                 ARQUIVO ÚNICO: coleta + relatórios + git
+├─ run-lab.bat                 ARQUIVO ÚNICO: instala + coleta + relatórios + git
 │
 ├─ lab/
 │  ├─ reports/                 RELATÓRIOS (o entregável)

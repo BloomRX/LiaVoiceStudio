@@ -17,11 +17,21 @@ REM  interna e PowerShell porque Batch puro nao le JSON, nao consulta CIM e
 REM  nao monta multipart com seguranca - mas voce so ve e so executa UM
 REM  arquivo.
 REM
+REM  O que ele faz:
+REM    - verifica pre-requisitos e coleta o hardware
+REM    - baixa o instalador oficial do VoiceStudio (v0.5.6), confere o
+REM      SHA-256 e instala em modo silencioso
+REM    - abre o app e espera a API local responder
+REM    - pede o download do modelo OmniVoice (~2.4 GB) pelo proprio app
+REM    - gera as frases do corpus pt-BR e mede tempo, duracao e RTF
+REM    - escreve os relatorios e faz commit/push na branch do fork
+REM
 REM  O que ele NAO faz:
-REM    - nao instala nada
 REM    - nao altera variaveis de ambiente do sistema
-REM    - nao abre portas na rede
-REM    - nao executa nada baixado da internet
+REM    - nao instala driver
+REM    - nao abre portas na rede (a API escuta so em 127.0.0.1)
+REM    - nao executa binario de origem duvidosa: o unico baixado e o
+REM      instalador do release oficial, e so roda se o SHA-256 conferir
 REM ===========================================================================
 
 set "VS_LAB_ROOT=%~dp0"
@@ -33,7 +43,7 @@ set "NOPAUSE="
 
 echo.
 echo  ============================================================
-echo   VoiceStudio Lab - coleta para Windows + AMD
+echo   VoiceStudio Lab - instala, testa e coleta (Windows + AMD)
 echo  ============================================================
 echo.
 
@@ -77,6 +87,8 @@ if /i "%A%"=="/voice"   goto arg_voice
 if /i "%A%"=="/full"    goto arg_full
 if /i "%A%"=="/nogit"   goto arg_nogit
 if /i "%A%"=="/nopause" goto arg_nopause
+if /i "%A%"=="/noinstall" goto arg_noinstall
+if /i "%A%"=="/nomodel" goto arg_nomodel
 
 echo %A% | findstr /b /i "/engine:" >nul
 if not errorlevel 1 goto arg_engine
@@ -108,6 +120,16 @@ set "NOPAUSE=1"
 shift
 goto parse
 
+:arg_noinstall
+set "PWSH_ARGS=!PWSH_ARGS! -NoInstall"
+shift
+goto parse
+
+:arg_nomodel
+set "PWSH_ARGS=!PWSH_ARGS! -NoModel"
+shift
+goto parse
+
 :arg_engine
 set "PWSH_ARGS=!PWSH_ARGS! -Engine %A:/engine:=%"
 shift
@@ -121,11 +143,13 @@ goto parse
 :help
 echo  Uso:
 echo.
-echo    run-lab.bat                    coleta rapida (ambiente + API + 1 frase)
+echo    run-lab.bat                    instala o app, baixa o modelo, gera 1 frase
 echo    run-lab.bat /voice             corpus completo pt-BR (C1..C10)
 echo    run-lab.bat /full              corpus + 4 repeticoes de C7
 echo    run-lab.bat /engine:audiocpp   forca um motor especifico
 echo    run-lab.bat /url:http://127.0.0.1:3900
+echo    run-lab.bat /noinstall         nao baixa/instala o app (so coleta)
+echo    run-lab.bat /nomodel           nao baixa o modelo OmniVoice
 echo    run-lab.bat /nogit             coleta sem commit/push
 echo    run-lab.bat /nopause           nao espera tecla no final
 echo.
@@ -178,11 +202,24 @@ exit /b %RC%
     Roda a Fase B/C/D/E do laboratorio na maquina real e empacota tudo em
     lab/reports/evidence/windows/<timestamp>/ para ser commitado e enviado.
 
-    NAO instala nada. NAO altera variaveis de ambiente. NAO abre portas.
-    NAO muda configuracao do sistema. Apenas le e mede.
+    Instala o app (se preciso, com SHA-256 conferido) e baixa o modelo
+    OmniVoice pelo proprio app. NAO altera variaveis de ambiente do sistema,
+    NAO abre portas na rede e NAO muda configuracao fora do app.
 
 .PARAMETER NoGit
     Coleta tudo mas nao faz commit/push.
+
+.PARAMETER NoInstall
+    Nao baixa nem instala o app; so coleta o que ja existe.
+
+.PARAMETER NoModel
+    Nao pede o download do modelo OmniVoice.
+
+.PARAMETER AppWaitSeconds
+    Quanto esperar a API subir depois de abrir o app. Padrao 1800.
+
+.PARAMETER Model
+    repo_id do modelo a garantir. Padrao k2-fsa/OmniVoice.
 
 .PARAMETER Voice
     Roda o corpus completo pt-BR (C1..C10), uma vez cada. Demora mais.
@@ -208,6 +245,10 @@ param(
     [switch]$NoGit,
     [switch]$Voice,
     [switch]$Full,
+    [switch]$NoInstall,
+    [switch]$NoModel,
+    [int]$AppWaitSeconds = 1800,
+    [string]$Model = 'k2-fsa/OmniVoice',
     [string]$Engine = "",
     [string]$BaseUrl = "http://127.0.0.1:3900",
     [string]$OutDir = ""
@@ -271,6 +312,72 @@ function Invoke-Api {
     }
 }
 
+function Invoke-Post {
+    <# POST JSON; devolve objeto ou $null e grava o erro. #>
+    param([string]$Path, [object]$Body, [string]$SaveAs, [int]$TimeoutSec = 30)
+    $url = "$BaseUrl$Path"
+    $json = $Body | ConvertTo-Json -Depth 6 -Compress
+    try {
+        $r = Invoke-RestMethod -Uri $url -Method Post -Body $json `
+             -ContentType 'application/json' -TimeoutSec $TimeoutSec -ErrorAction Stop
+        if ($SaveAs) { $r | ConvertTo-Json -Depth 8 | Out-File -FilePath (Join-Path $ApiDir $SaveAs) -Encoding UTF8 }
+        return $r
+    } catch {
+        $msg = $_.Exception.Message
+        $body = ''
+        try {
+            $sr = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+            $body = $sr.ReadToEnd()
+        } catch { }
+        if ($SaveAs) {
+            @{ path = $Path; error = $msg; body = $body; at = (Get-Date).ToString('o') } |
+                ConvertTo-Json | Out-File -FilePath (Join-Path $ApiDir $SaveAs) -Encoding UTF8
+        }
+        return $null
+    }
+}
+
+function Find-VoiceStudioExe {
+    <# Procura o executavel instalado por registro, caminhos padrao e varredura. #>
+    $direct = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\VoiceStudio\VoiceStudio.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\OmniVoice Studio\OmniVoice Studio.exe'),
+        (Join-Path $env:LOCALAPPDATA 'Programs\omnivoice-studio\omnivoice-studio.exe')
+    )
+    foreach ($p in $direct) { if (Test-Path $p) { return $p } }
+
+    $roots = @(
+        'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*',
+        'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*'
+    )
+    foreach ($r in $roots) {
+        try {
+            $entries = Get-ItemProperty $r -ErrorAction SilentlyContinue |
+                       Where-Object { $_.DisplayName -match 'VoiceStudio|OmniVoice' }
+            foreach ($e in $entries) {
+                if ($e.InstallLocation -and (Test-Path $e.InstallLocation)) {
+                    $hit = Get-ChildItem -Path $e.InstallLocation -Filter '*.exe' -ErrorAction SilentlyContinue |
+                           Where-Object { $_.Name -match 'VoiceStudio|OmniVoice' } | Select-Object -First 1
+                    if ($hit) { return $hit.FullName }
+                }
+                if ($e.DisplayIcon) {
+                    $icon = ($e.DisplayIcon -split ',')[0].Trim().Trim('"')
+                    if (Test-Path $icon) { return $icon }
+                }
+            }
+        } catch { }
+    }
+
+    $base = Join-Path $env:LOCALAPPDATA 'Programs'
+    if (Test-Path $base) {
+        $hit = Get-ChildItem -Path $base -Recurse -Depth 2 -Filter '*.exe' -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -match '^(VoiceStudio|OmniVoice).*\.exe$' } | Select-Object -First 1
+        if ($hit) { return $hit.FullName }
+    }
+    return $null
+}
+
 function Get-Sha256 {
     param([string]$Path)
     try { return (Get-FileHash -Path $Path -Algorithm SHA256).Hash.ToLower() } catch { return '' }
@@ -291,8 +398,8 @@ if ($Full) { Write-Host " Modo: COMPLETO (corpus + repeticoes)" -ForegroundColor
 elseif ($Voice) { Write-Host " Modo: VOZ (corpus completo)" -ForegroundColor Magenta }
 else { Write-Host " Modo: RAPIDO (ambiente + API + 1 frase)" -ForegroundColor Magenta }
 
-# ---------------------------------------------------------------- [1/7] preflight
-Write-Step '1/7' 'Verificando pre-requisitos'
+# ---------------------------------------------------------------- [1/10] preflight
+Write-Step '1/10' 'Verificando pre-requisitos'
 
 $psv = $PSVersionTable.PSVersion.ToString()
 Write-Info "PowerShell $psv"
@@ -327,8 +434,8 @@ if (Test-Cmd 'git') {
 }
 if (-not $isRepo) { Write-Warn2 'Este diretorio nao e um repositorio git; o commit sera pulado.' }
 
-# --------------------------------------------------------------- [2/7] hardware
-Write-Step '2/7' 'Coletando hardware e sistema'
+# --------------------------------------------------------------- [2/10] hardware
+Write-Step '2/10' 'Coletando hardware e sistema'
 
 $hw = [ordered]@{
     collected_at   = (Get-Date).ToString('o')
@@ -442,8 +549,8 @@ foreach ($d in $hw.disks) { $hwLines += "Disco   : $($d.drive) $($d.free_gb) GB 
 $hwLines += "Admin   : $($hw.is_admin)"
 $hwLines | Out-File -FilePath (Join-Path $OutDir 'hardware.txt') -Encoding UTF8
 
-# ------------------------------------------------- [3/7] app, processos, porta
-Write-Step '3/7' 'Procurando a instalacao do VoiceStudio'
+# ------------------------------------------------- [3/10] app, processos, porta
+Write-Step '3/10' 'Procurando a instalacao do VoiceStudio'
 
 $appInfo = [ordered]@{
     data_dirs_found = @()
@@ -502,8 +609,187 @@ if (Test-Cmd 'Get-NetTCPConnection') {
 
 $appInfo | ConvertTo-Json -Depth 5 | Out-File -FilePath (Join-Path $OutDir 'app.json') -Encoding UTF8
 
-# ---------------------------------------------------------------- [4/7] API
-Write-Step '4/7' 'Sondando a API local'
+# ------------------------------------------------------ [4/10] instalar app
+Write-Step '4/10' 'Instalando o VoiceStudio'
+
+# Pin da versao estavel. O SHA-256 foi lido da API do GitHub para a release
+# v0.5.6; o asset tem 214.447.484 bytes. Se a release mudar, o hash falha e
+# a instalacao e abortada em vez de executar outro binario.
+$ReleaseTag  = 'v0.5.6'
+$AssetName   = 'VoiceStudio-Electron-0.5.6-win-x64.exe'
+$AssetSha256 = '3d7ac1d6b54e7854ca7fff4dda838e402d1c5d31acc9656b1838432e29a97624'
+$AssetBytes  = 214447484
+
+$appExe   = $null
+$appState = 'nao encontrado'
+try { $appExe = Find-VoiceStudioExe } catch { }
+
+if ($appExe) {
+    $appState = 'ja instalado'
+    Write-Ok "VoiceStudio ja instalado: $appExe"
+    Write-Info 'instalacao pulada'
+} elseif ($NoInstall) {
+    $appState = 'pulado por /noinstall'
+    Write-Info 'instalacao pulada por /noinstall'
+} else {
+    Write-Info "release : $ReleaseTag"
+    Write-Info "arquivo : $AssetName (~204 MB)"
+    Write-Info "destino : %TEMP%\voicestudio-lab"
+
+    $dlDir   = Join-Path $env:TEMP 'voicestudio-lab'
+    New-Item -ItemType Directory -Force -Path $dlDir | Out-Null
+    $exePath = Join-Path $dlDir $AssetName
+    $url     = "https://github.com/debpalash/VoiceStudio/releases/download/$ReleaseTag/$AssetName"
+
+    $needDownload = $true
+    if (Test-Path $exePath) {
+        $sz = (Get-Item $exePath).Length
+        if ($sz -eq $AssetBytes) { $needDownload = $false; Write-Info 'instalador ja baixado, reaproveitando' }
+    }
+
+    if ($needDownload) {
+        Write-Info 'baixando... (pode levar alguns minutos)'
+        $ok = $false
+        if (Test-Cmd 'curl.exe') {
+            & curl.exe -L --fail --retry 2 --connect-timeout 30 -o $exePath $url 2>$null
+            if ($LASTEXITCODE -eq 0) { $ok = $true }
+        }
+        if (-not $ok) {
+            try {
+                $oldPref = $ProgressPreference
+                $ProgressPreference = 'SilentlyContinue'
+                Invoke-WebRequest -Uri $url -OutFile $exePath -UseBasicParsing -ErrorAction Stop
+                $ProgressPreference = $oldPref
+                $ok = $true
+            } catch {
+                Write-Fail "download falhou: $($_.Exception.Message)"
+            }
+        }
+        if (-not $ok) {
+            $appState = 'falha no download'
+            Write-Fail 'nao foi possivel baixar o instalador; siga sem instalar'
+        }
+    }
+
+    if ((Test-Path $exePath) -and $appState -ne 'falha no download') {
+        Write-Info 'conferindo SHA-256...'
+        $actual = (Get-FileHash -Path $exePath -Algorithm SHA256).Hash.ToLower()
+        if ($actual -ne $AssetSha256) {
+            Write-Fail "SHA-256 nao confere. esperado $AssetSha256, obtido $actual"
+            $appState = 'hash invalido'
+            Write-Fail 'instalador descartado por seguranca; nada foi executado'
+            Remove-Item $exePath -Force -ErrorAction SilentlyContinue
+        } else {
+            Write-Ok 'SHA-256 confere'
+            Write-Info 'executando instalador silencioso (/S)...'
+            try {
+                Start-Process -FilePath $exePath -ArgumentList '/S' -Wait -ErrorAction Stop
+            } catch {
+                Write-Warn2 "o instalador retornou erro: $($_.Exception.Message)"
+            }
+
+            $deadline = (Get-Date).AddSeconds(180)
+            while ((Get-Date) -lt $deadline) {
+                Start-Sleep -Seconds 3
+                try { $appExe = Find-VoiceStudioExe } catch { }
+                if ($appExe) { break }
+            }
+            if ($appExe) {
+                $appState = 'instalado agora'
+                Write-Ok "instalado em: $appExe"
+            } else {
+                $appState = 'instalador rodou, executavel nao localizado'
+                Write-Warn2 'instalador executou mas nao achei o .exe. Procure no Menu Iniciar.'
+            }
+        }
+    }
+}
+
+[ordered]@{
+    state          = $appState
+    exe            = $appExe
+    release        = $ReleaseTag
+    asset          = $AssetName
+    asset_bytes    = $AssetBytes
+    sha256_expected = $AssetSha256
+    silent_flag    = '/S'
+    at             = (Get-Date).ToString('o')
+} | ConvertTo-Json -Depth 4 | Out-File -FilePath (Join-Path $OutDir 'app-install.json') -Encoding UTF8
+
+# ------------------------------------------- [5/10] iniciar app e esperar API
+Write-Step '5/10' 'Iniciando o VoiceStudio'
+
+if (-not $appExe) {
+    try { $appExe = Find-VoiceStudioExe } catch { }
+}
+
+$apiReady = $false
+if ($appExe) {
+    $procName = [System.IO.Path]::GetFileNameWithoutExtension($appExe)
+    $running = $false
+    try {
+        if (Get-Process -Name $procName -ErrorAction SilentlyContinue) { $running = $true }
+    } catch { }
+
+    if (-not $running) {
+        Write-Info "iniciando: $appExe"
+        try {
+            Start-Process -FilePath $appExe -ErrorAction Stop
+        } catch {
+            Write-Warn2 "nao consegui iniciar o app: $($_.Exception.Message)"
+        }
+    } else {
+        Write-Ok 'o app ja esta rodando'
+    }
+
+    Write-Info "esperando /health responder (ate $AppWaitSeconds s)..."
+    Write-Info ''
+    Write-Info 'ATENCAO - existe UM passo que so pode ser feito na janela do app:'
+    Write-Info '  1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"'
+    Write-Info '     (Python + dependencias, varios GB). Clique nesse botao.'
+    Write-Info '  2. quando a API subir, este script continua sozinho.'
+    Write-Info '  Nao feche esta janela do cmd.'
+    Write-Info ''
+
+    $deadline = (Get-Date).AddSeconds($AppWaitSeconds)
+    $lastLabel = ''
+    $waited    = 0
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $h = Invoke-RestMethod -Uri "$BaseUrl/health" -Method Get -TimeoutSec 3 -ErrorAction Stop
+            if ($h -and $h.status -eq 'ok') { $apiReady = $true; break }
+        } catch { }
+
+        # /health devolve 503 enquanto o backend sobe; /startup/progress
+        # responde sempre e diz em que etapa ele esta.
+        try {
+            $sp = Invoke-RestMethod -Uri "$BaseUrl/startup/progress" -Method Get -TimeoutSec 3 -ErrorAction Stop
+            $lbl = "$($sp.step) $($sp.label)"
+            if ($lbl -ne $lastLabel) { Write-Info "backend subindo: $lbl"; $lastLabel = $lbl }
+        } catch { }
+
+        Start-Sleep -Seconds 5
+        $waited += 5
+        if ($waited % 60 -eq 0) {
+            Write-Info "aguardando a API... ${waited}s. Se a janela do app pedir, clique em 'Instalar ambiente local'."
+        }
+    }
+
+    if ($apiReady) {
+        Write-Ok 'API respondeu: o app esta pronto'
+    } else {
+        Write-Warn2 'timeout esperando a API. Motivos comuns:'
+        Write-Info '  - ninguem clicou em "Instalar ambiente local" na janela do app'
+        Write-Info '  - o download do ambiente Python ainda esta em andamento'
+        Write-Info '  - o app abriu e fechou por algum erro (veja o log dele)'
+        Write-Info 'Deixe o app aberto e rode o .bat de novo: ele reaproveita o que ja baixou.'
+    }
+} else {
+    Write-Warn2 'app nao encontrado; seguindo sem iniciar (as fases de API e voz serao puladas)'
+}
+
+# ---------------------------------------------------------------- [6/10] API
+Write-Step '6/10' 'Sondando a API local'
 
 $apiStatus = [ordered]@{ reachable = $false; version = $null; device = $null }
 
@@ -553,8 +839,125 @@ if ($apiStatus.reachable) {
     }
 }
 
-# ------------------------------------------------------------- [5/7] geracao
-Write-Step '5/7' 'Geracao de voz (corpus pt-BR)'
+# ------------------------------------------------------ [7/10] modelo TTS
+Write-Step '7/10' "Garantindo o modelo TTS ($Model)"
+
+$modelState = 'nao avaliado'
+if ($NoModel) {
+    $modelState = 'pulado por /nomodel'
+    Write-Info 'download de modelo pulado por /nomodel'
+} elseif (-not $apiStatus.reachable) {
+    $modelState = 'api indisponivel'
+    Write-Warn2 'API indisponivel - modelo nao pode ser garantido'
+} else {
+    Write-Info "modelo  : $Model"
+    Write-Info 'tamanho : ~2.4 GB no primeiro download'
+    Write-Info 'origem  : Hugging Face, via o proprio app'
+
+    # Idempotente quando os pesos ja estao completos: o hf_hub reaproveita o cache.
+    $start = Invoke-Post -Path '/models/install' -Body @{ repo_id = $Model; target = 'local' } -SaveAs 'model-install-start.json' -TimeoutSec 30
+    if ($null -eq $start) {
+        $modelState = 'pedido de instalacao falhou'
+        Write-Warn2 'o pedido de download falhou; veja api/model-install-start.json'
+    } else {
+        Write-Info 'download iniciado; acompanhando /models/install/status'
+
+        $deadline = (Get-Date).AddSeconds(2700)
+        $started  = Get-Date
+        $lastNote = ''
+        $failed   = $false
+        $done     = $false
+        $seen     = $false
+        $absent   = 0
+        while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            $st = Invoke-Api -Path '/models/install/status' -SaveAs 'model-install-status.json' -TimeoutSec 20
+            if (-not $st) { continue }
+
+            $job = $null
+            if ($st.jobs) {
+                $job = @($st.jobs | Where-Object { $_.repo_id -eq $Model }) | Select-Object -First 1
+            }
+
+            if ($job) {
+                $seen   = $true
+                $absent = 0
+                $note = "estado=$($job.state)"
+                if ($job.total_bytes -and ($null -ne $job.bytes_done)) {
+                    $mb  = [math]::Round([double]$job.bytes_done / 1MB, 0)
+                    $tot = [math]::Round([double]$job.total_bytes / 1MB, 0)
+                    $note = "$note ${mb}/${tot} MB"
+                }
+                if ($job.files_total) {
+                    $note = "$note arquivos=$($job.files_done)/$($job.files_total)"
+                }
+                if ($job.eta_seconds) {
+                    $note = "$note eta=$([math]::Round([double]$job.eta_seconds,0))s"
+                }
+                if ($note -ne $lastNote) { Write-Info $note; $lastNote = $note }
+
+                if ($job.state -eq 'failed') {
+                    $failed = $true
+                    if ($job.error) { Write-Fail "motivo: $($job.error)" }
+                    break
+                }
+            } else {
+                # O job sai da lista quando termina - e tambem pode ainda nao
+                # ter aparecido. So concluimos apos algum tempo e duas leituras
+                # seguidas sem job.
+                $absent++
+                $elapsed = ((Get-Date) - $started).TotalSeconds
+                if ($elapsed -gt 20 -and $absent -ge 2) { $done = $true; break }
+                if (-not $seen -and $elapsed -gt 120) { $done = $true; break }
+            }
+        }
+
+        if ($failed) {
+            $modelState = 'falhou'
+            Write-Fail 'o download do modelo falhou; veja api/model-install-status.json'
+        } elseif ($done) {
+            $modelState = 'concluido'
+            Write-Ok 'download do modelo concluido'
+        } else {
+            $modelState = 'timeout'
+            Write-Warn2 'timeout acompanhando o download (45 min). Pode continuar em segundo plano.'
+        }
+    }
+
+    $eng2 = Invoke-Api -Path '/engines/tts' -SaveAs 'engines-after-install.json' -TimeoutSec 20
+    if ($eng2 -and $eng2.backends) {
+        $om = @($eng2.backends | Where-Object { $_.id -eq 'omnivoice' }) | Select-Object -First 1
+        if ($om) {
+            if ($om.available) { Write-Ok "omnivoice disponivel (device=$($om.effective_device))" }
+            else { Write-Warn2 "omnivoice ainda indisponivel: $($om.reason)" }
+        }
+    }
+}
+
+# A v0.5.6 NAO tem gate de licenca (o codigo daquela versao nao contem
+# ensure_engine_licence). Em versoes mais novas o app pede um aceite antes de
+# gerar; se o endpoint existir, registramos o mesmo aceite que o botao da
+# interface registraria. Nunca e fatal.
+if ($apiStatus.reachable) {
+    $lic = Invoke-Api -Path '/models/licenses/acceptance/k2-fsa/OmniVoice' -SaveAs 'licence-state.json' -TimeoutSec 10
+    if ($null -eq $lic) {
+        Write-Info 'sem gate de licenca nesta versao (esperado na v0.5.6)'
+    } elseif ($lic.state -eq 'accepted') {
+        Write-Ok 'licenca do modelo ja aceita'
+    } else {
+        $fp = $lic.fingerprint
+        if ($fp) {
+            $acc = Invoke-Post -Path '/models/licenses/accept' -Body @{ repo_id = $Model; fingerprint = $fp; accepted = $true } -SaveAs 'licence-accept.json' -TimeoutSec 20
+            if ($acc) { Write-Ok 'aceite de licenca registrado' }
+            else { Write-Warn2 'aceite falhou; aceite manualmente no Model Catalogue' }
+        } else {
+            Write-Info 'fingerprint nao retornado; siga pelo app se for pedido'
+        }
+    }
+}
+
+# ------------------------------------------------------------- [8/10] geracao
+Write-Step '8/10' 'Geracao de voz (corpus pt-BR)'
 
 $corpusDir = Join-Path $RepoRoot 'lab\reports\corpus'
 $corpusFiles = @()
@@ -692,8 +1095,8 @@ if (-not $corpusFiles) {
     Write-Ok "medicoes salvas em measurements.csv"
 }
 
-# ------------------------------------------------------------- [6/7] resumo
-Write-Step '6/7' 'Escrevendo o resumo'
+# ------------------------------------------------------------- [9/10] resumo
+Write-Step '9/10' 'Escrevendo o resumo'
 
 $sum = New-Object System.Text.StringBuilder
 function Add-Line { param([string]$t = '') [void]$sum.AppendLine($t) }
@@ -710,6 +1113,9 @@ Add-Line '```'
 Add-Line ""
 Add-Line "## VoiceStudio"
 Add-Line ""
+Add-Line "- App instalado: **$appState**"
+if ($appExe) { Add-Line "- Executavel: ``$appExe``" }
+Add-Line "- Modelo TTS: **$modelState**"
 Add-Line "- API respondeu: **$($apiStatus.reachable)**"
 if ($apiStatus.reachable) {
     Add-Line "- Versao: ``$($apiStatus.version)``"
@@ -771,8 +1177,8 @@ Write-Ok 'summary.md escrito'
 
 try { Stop-Transcript | Out-Null } catch { }
 
-# ------------------------------------------------------------- [7/7] git
-Write-Step '7/7' 'Enviando para o git'
+# ------------------------------------------------------------- [10/10] git
+Write-Step '10/10' 'Enviando para o git'
 
 if ($NoGit -or -not $isRepo) {
     Write-Info 'Commit/push pulado por opcao ou por nao ser repositorio git.'

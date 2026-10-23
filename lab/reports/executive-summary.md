@@ -267,8 +267,8 @@ O caminho de menor risco, na ordem:
 
 1. **Validar a qualidade em pt-BR antes de qualquer código.** É o único dado que
    falta e o único que não pode ser obtido por inspeção. Para isso existe
-   **`run-lab.bat`** na raiz: ele coleta hardware, API e áudio do corpus, escreve
-   o resumo e envia ao git. Depois ouça as amostras e preencha a grade de
+   **`run-lab.bat`** na raiz: ele instala o app, baixa o modelo, coleta hardware,
+   API e áudio do corpus, escreve o resumo e envia ao git. Depois ouça as amostras e preencha a grade de
    `test-matrix.md` §4.2.
 2. **Se a qualidade for boa e o uso for pessoal/local:** implementar o adaptador
    descrito em `integration-proposal.md`, com Kokoro como padrão e VoiceStudio
@@ -320,7 +320,7 @@ Declaradas para que ninguém as descubra depois:
 | `evidence/a1..a6` | inspeção estática (extrações reprodutíveis) |
 | `evidence/runtime/` | Fase E executada contra backend real |
 | `evidence/windows/` | onde `run-lab.bat` grava a coleta da máquina real |
-| `../../run-lab.bat` | **arquivo único** na raiz: coleta + relatórios + git |
+| `../../run-lab.bat` | **arquivo único** na raiz: instala + coleta + relatórios + git |
 
 ---
 

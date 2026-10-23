@@ -68,8 +68,8 @@ Resultados em [`evidence/runtime/`](evidence/runtime/README.md).
 
 Executar as Fases B–D na máquina real e ouvir o corpus.
 
-Na raiz do repositório existe **`run-lab.bat`**: ele coleta hardware, API e áudio
-do corpus, escreve o resumo e envia ao git. Instruções em
+Na raiz do repositório existe **`run-lab.bat`**: ele instala o app, baixa o
+modelo, coleta hardware, API e áudio do corpus, escreve o resumo e envia ao git. Instruções em
 [`../tools/README.md`](../tools/README.md).
 
 Depois de ouvir as amostras, preencha a grade de avaliação de
