@@ -1,0 +1,121 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261023190131
+Nome de Usuário: LUCASPC\lucas
+Executar como Usuário: LUCASPC\lucas
+Nome da Configuração: 
+Computador: LUCASPC (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\lucas\AppData\Local\Temp\voicestudio-lab.ps1 -Gpu
+ID do Processo: 14312
+PSVersion: 5.1.26100.9711
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9711
+BuildVersion: 10.0.26100.9711
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+================================================================
+ VoiceStudio Lab - instala, testa e coleta (Windows + AMD)
+ Versao do coletor: 1.0.0
+ Inicio: 2026-10-23 19:01:31
+ Saida:  J:\LiaVoiceStudio\lab\reports\evidence\windows\20261023-190131
+================================================================
+ Modo: RAPIDO (ambiente + API + 2 frases)
+ Opcoes: gguf=False gpu=True voice=False full=False noinstall=False nomodel=False engine=''
+
+[1/10] Verificando pre-requisitos
+     PowerShell 5.1.26100.9711
+     OK    curl disponivel (curl.exe)
+     OK    git 2.52.0.windows.1
+     OK    repositorio git, branch 'arena/e6163ffc-liavoicestudio'
+
+[2/10] Coletando hardware e sistema
+     OK    Microsoft Windows 11 Home build 26200 (64 bits)
+     OK    CPU: AMD Ryzen 5 5500 (6C/12T, AMD)
+     OK    GPU: Parsec Virtual Display Adapter (driver 0.45.0.0)
+     OK    GPU: AMD Radeon RX 580 2048SP (driver 31.0.21925.1001)
+     C: 184.6 GB livres de 475.9 GB
+     D: 153 GB livres de 465.8 GB
+     F: 29 GB livres de 83.8 GB
+     G: 5.2 GB livres de 15 GB
+     J: 112.1 GB livres de 447.1 GB
+     OK    vulkaninfo encontrado; resumo salvo
+     OK    Unidade J: presente
+
+[3/10] Procurando a instalacao do VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Roaming\omnivoice
+     OK    encontrado: C:\Users\lucas\AppData\Local\omnivoice
+     nenhum processo VoiceStudio/python rodando
+     porta 3900 nao esta escutando (app fechado?)
+
+[4/10] Instalando o VoiceStudio
+     OK    VoiceStudio ja instalado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     instalacao pulada
+
+[5/10] Iniciando o VoiceStudio
+     iniciando: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     esperando /health responder (ate 1800 s)...
+
+     ATENCAO - existe UM passo que so pode ser feito na janela do app:
+       1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"
+          (Python + dependencias, varios GB). Clique nesse botao.
+       2. quando a API subir, este script continua sozinho.
+       Nao feche esta janela do cmd.
+
+     aguardando a API... 60s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 120s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 180s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 240s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 300s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 360s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 420s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 480s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 540s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 600s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 660s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 720s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 780s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 840s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 900s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 960s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 1020s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 1080s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 1140s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 1200s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     aguardando a API... 1260s. Se a janela do app pedir, clique em 'Instalar ambiente local'.
+     AVISO timeout esperando a API. Motivos comuns:
+       - ninguem clicou em "Instalar ambiente local" na janela do app
+       - o download do ambiente Python ainda esta em andamento
+       - o app abriu e fechou por algum erro (veja o log dele)
+     Deixe o app aberto e rode o .bat de novo: ele reaproveita o que ja baixou.
+
+[6/10] Sondando a API local
+PS>TerminatingError(Invoke-RestMethod): "Impossível conectar-se ao servidor remoto"
+     AVISO API nao respondeu em http://127.0.0.1:3900. Abra o VoiceStudio e rode de novo para as fases C/D.
+
+[7/10] Garantindo o modelo TTS (k2-fsa/OmniVoice)
+     AVISO API indisponivel - modelo nao pode ser garantido
+
+[7c] GPU real e Vulkan (audio.cpp)
+     AMD Radeon RX 580 2048SP: 8 GB de VRAM (registro)
+     Parsec Virtual Display Adapter: VRAM nao informada pelo driver
+     OK    VRAM real detectada: 8 GB
+     o valor de 4 GB que o WMI devolve e saturacao do campo AdapterRAM, nao a placa
+PS>TerminatingError(Invoke-RestMethod): "Impossível conectar-se ao servidor remoto"
+     AVISO endpoint do runtime audio.cpp indisponivel
+     modelo de 4,98 GB NAO sera baixado: sem Vulkan enumerado, nao ha o que medir
+     veredito: Runtime audio.cpp nao instalado.
+
+[8/10] Geracao de voz (corpus pt-BR)
+     AVISO API indisponivel - geracao pulada
+
+[9/10] Escrevendo o resumo
+     OK    summary.md escrito
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261023193144
+**********************

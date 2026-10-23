@@ -1,0 +1,34 @@
+﻿{
+    "vram_reportada_gb":  null,
+    "adapters":  [
+                     {
+                         "name":  "AMD Radeon RX 580 2048SP",
+                         "vram_gb":  8,
+                         "vram_bytes":  8589934592
+                     },
+                     {
+                         "name":  "Parsec Virtual Display Adapter",
+                         "vram_gb":  null,
+                         "vram_bytes":  null
+                     }
+                 ],
+    "runtime_supported":  null,
+    "runtime_installed":  false,
+    "runtime_version":  null,
+    "server_exe":  null,
+    "devices_raw":  [
+
+                    ],
+    "vulkan_gpu":  false,
+    "vram_real_gb":  8,
+    "model_installed":  false,
+    "engine_available":  null,
+    "engine_routing":  null,
+    "engine_reason":  null,
+    "generated":  false,
+    "http":  null,
+    "gen_s":  null,
+    "audio_s":  null,
+    "rtf":  null,
+    "verdict":  "Runtime audio.cpp nao instalado."
+}
