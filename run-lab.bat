@@ -1198,6 +1198,9 @@ if ($Gpu) {
         vulkan_gpu        = $false
         vram_real_gb      = $null
         model_installed   = $false
+        engine_available  = $null
+        engine_routing    = $null
+        engine_reason     = $null
         generated         = $false
         http              = $null
         gen_s             = $null
@@ -1308,7 +1311,9 @@ if ($Gpu) {
             Write-Info "binario: $exe"
             Write-Info 'executando --list-devices (o runtime enumera os backends)'
             try {
-                $devOut = (& $exe --list-devices 2>&1 | Out-String)
+                # o binario escreve a lista no stderr; sem cmd /c o PowerShell
+                # transforma isso em NativeCommandError e polui a evidencia
+                $devOut = (& cmd /c "`"$exe`" --list-devices 2>&1" | Out-String)
                 $gpuTest.devices_raw = @($devOut -split "`r?`n" | Where-Object { $_.Trim() -ne '' })
                 foreach ($l in $gpuTest.devices_raw) { Write-Info "  $($l.Trim())" }
                 $vkLines = @($gpuTest.devices_raw | Where-Object { $_ -match '(?i)^\s*Vulkan\s*:' })
@@ -1371,6 +1376,20 @@ if ($Gpu) {
                 }
             }
             if (-not $gpuTest.model_installed) { Write-Warn2 'sem modelo completo, a geracao Vulkan sera pulada' }
+
+            # o engine so passa a existir quando runtime E modelo estao no lugar;
+            # a lista de motores foi lida antes disso, entao reconsulta
+            $eng2 = Invoke-Api -Path '/engines/tts' -SaveAs 'engines-after-audiocpp.json' -TimeoutSec 60 -Tolerant
+            if ($eng2 -and $eng2.backends) {
+                $acEng = @($eng2.backends | Where-Object { $_.id -eq 'audiocpp' }) | Select-Object -First 1
+                if ($acEng) {
+                    $gpuTest.engine_available = [bool]$acEng.available
+                    $gpuTest.engine_routing = $acEng.routing_status
+                    $gpuTest.engine_reason = $acEng.reason
+                    if ($acEng.available) { Write-Ok "engine audiocpp agora disponivel (device $($acEng.effective_device), routing $($acEng.routing_status))" }
+                    else { Write-Warn2 "engine audiocpp AINDA indisponivel: $($acEng.reason)" }
+                }
+            }
         }
     } elseif (-not $gpuTest.vulkan_gpu) {
         Write-Info 'modelo de 4,98 GB NAO sera baixado: sem Vulkan enumerado, nao ha o que medir'
@@ -1414,7 +1433,7 @@ if ($Gpu) {
     }
 
     if ($gpuTest.rtf) {
-        $gpuTest.verdict = "Vulkan rodou na placa. RTF=$($gpuTest.rtf) com Breeze-TTS-2 (en). Compare com o RTF 25,9 do OmniVoice em CPU."
+        $gpuTest.verdict = "HTTP 200 com RTF=$($gpuTest.rtf). ATENCAO: esta requisicao passa pela API do app e a resposta nao diz qual motor a atendeu - se o engine audiocpp estivesse indisponivel, o app teria caido no motor ativo. Numero NAO atribuivel sem o passo [7d]."
     } elseif ($gpuTest.vulkan_gpu) {
         $gpuTest.verdict = 'Vulkan enumerou a placa, mas nao houve geracao concluida.'
     } elseif ($gpuTest.runtime_installed) {
@@ -1425,6 +1444,194 @@ if ($Gpu) {
     Write-Info "veredito: $($gpuTest.verdict)"
 
     $gpuTest | ConvertTo-Json -Depth 6 | Out-File -FilePath (Join-Path $OutDir 'gpu.json') -Encoding UTF8
+}
+
+# ------------------------------------- [7d] Vulkan vs CPU (medicao pareada)
+# Por que este passo existe: o RTF do [7c] passa pela API do app, inclui a
+# carga do modelo e a compilacao de shaders dentro da mesma requisicao, e -
+# pior - nao diz qual motor atendeu. Para responder "a placa e mais rapida que
+# o Ryzen?" e preciso o mesmo binario, o mesmo modelo, o mesmo texto, o mesmo
+# seed, primeiro pedido descartado. Este passo sobe o audiocpp_server duas
+# vezes (--backend vulkan e --backend cpu) e mede os dois.
+$gpuPair = $null
+if ($Gpu -and $gpuTest -and $gpuTest.server_exe -and $gpuTest.model_installed) {
+    Write-Step '7d' 'Vulkan vs CPU (medicao pareada)'
+
+    function Get-WavInfo {
+        param([byte[]]$Bytes)
+        if (-not $Bytes -or $Bytes.Length -lt 44) { return $null }
+        $ch   = [int]$Bytes[22] + ([int]$Bytes[23] -shl 8)
+        $sr   = [int]$Bytes[24] + ([int]$Bytes[25] -shl 8) + ([int]$Bytes[26] -shl 16) + ([int]$Bytes[27] -shl 24)
+        $bits = [int]$Bytes[34] + ([int]$Bytes[35] -shl 8)
+        $i = 12
+        while ($i + 8 -le $Bytes.Length) {
+            $id = -join @([char]$Bytes[$i], [char]$Bytes[$i+1], [char]$Bytes[$i+2], [char]$Bytes[$i+3])
+            $sz = [int]$Bytes[$i+4] + ([int]$Bytes[$i+5] -shl 8) + ([int]$Bytes[$i+6] -shl 16) + ([int]$Bytes[$i+7] -shl 24)
+            if ($id -eq 'data') {
+                $frame = $ch * ($bits / 8)
+                if ($sr -gt 0 -and $frame -gt 0) {
+                    return [ordered]@{ sr = $sr; ch = $ch; bits = $bits; seconds = [math]::Round($sz / ($sr * $frame), 2) }
+                }
+                return $null
+            }
+            $i += 8 + $sz + ($sz % 2)
+        }
+        return $null
+    }
+
+    # --- localizar o GGUF instalado (o mesmo arquivo que o app baixou)
+    $ggufPath = $null
+    $hubRoot = Join-Path $env:USERPROFILE '.cache\huggingface\hub\models--audio-cpp--audio.cpp-gguf'
+    if (-not (Test-Path $hubRoot)) {
+        $hubRoot = Join-Path $env:LOCALAPPDATA 'OmniVoice\hf_cache\models--audio-cpp--audio.cpp-gguf'
+    }
+    if (Test-Path $hubRoot) {
+        $hit = Get-ChildItem -Path $hubRoot -Recurse -Filter 'breeze-tts-2-q8_0.gguf' -ErrorAction SilentlyContinue |
+               Select-Object -First 1
+        if ($hit) { $ggufPath = $hit.FullName }
+    }
+
+    if (-not $ggufPath) {
+        Write-Warn2 'GGUF do Breeze nao encontrado em cache - medicao pareada pulada'
+    } else {
+        Write-Info "modelo: $ggufPath"
+
+        $pairText = 'The quick brown fox jumps over the lazy dog. Today is October 23, 2026, and the temperature is 21 degrees.'
+        $pairSha = [System.Security.Cryptography.SHA256]::Create()
+        $pairHash = ($pairSha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($pairText)) |
+                     ForEach-Object { $_.ToString('x2') }) -join ''
+        $pairFile = Join-Path $AudioDir 'gpu-paired.text.txt'
+        $utf8NoBomP = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllText($pairFile, $pairText, $utf8NoBomP)
+
+        $gpuPair = [ordered]@{
+            model_path    = $ggufPath
+            text_sha256   = $pairHash
+            seed          = 42
+            runs_measured = 3
+            warmup_runs   = 1
+            backends      = [ordered]@{}
+            speedup_cpu_over_vulkan = $null
+            verdict       = ''
+        }
+
+        $portOffset = 0
+        foreach ($bk in @('vulkan', 'cpu')) {
+            $port = 17871 + $portOffset
+            $portOffset++
+            $rec = [ordered]@{
+                backend = $bk; port = $port; started = $false; pid = $null
+                requests = @(); rtf_median = $null; rtf_min = $null; rtf_max = $null
+                error = $null
+            }
+            $proc = $null
+            try {
+                $cfgPath = Join-Path $OutDir ("audiocpp-{0}.json" -f $bk)
+                $threads = 1
+                if ($bk -eq 'cpu') { $threads = 8 }
+                $cfg = [ordered]@{
+                    host = '127.0.0.1'; port = $port; backend = $bk; device = 0
+                    threads = $threads; lazy_load = $true; max_loaded_models = 1
+                    models = @([ordered]@{
+                        id = 'breeze-tts-2'; family = 'breeze_tts'; path = $ggufPath
+                        task = 'tts'; mode = 'offline'
+                    })
+                }
+                $cfg | ConvertTo-Json -Depth 8 | Out-File -FilePath $cfgPath -Encoding ASCII
+                $soLog = Join-Path $OutDir ("audiocpp-{0}.out.log" -f $bk)
+                $seLog = Join-Path $OutDir ("audiocpp-{0}.err.log" -f $bk)
+
+                $proc = Start-Process -FilePath $gpuTest.server_exe `
+                    -ArgumentList @('--config', "`"$cfgPath`"") -PassThru -WindowStyle Hidden `
+                    -RedirectStandardOutput $soLog -RedirectStandardError $seLog
+                $rec.pid = $proc.Id
+                Write-Info "[$bk] audiocpp_server na porta $port (pid $($proc.Id))"
+
+                $base = "http://127.0.0.1:$port"
+                $ready = $false
+                $deadline = (Get-Date).AddSeconds(180)
+                while ((Get-Date) -lt $deadline) {
+                    if ($proc.HasExited) { break }
+                    try {
+                        $null = Invoke-RestMethod -Uri "$base/health" -TimeoutSec 3 -UseBasicParsing
+                        $ready = $true; break
+                    } catch { Start-Sleep -Seconds 2 }
+                }
+
+                if (-not $ready) {
+                    $tail = ''
+                    if (Test-Path $seLog) { $tail = ((Get-Content -Path $seLog -Raw -ErrorAction SilentlyContinue) -split "`n" | Select-Object -Last 3) -join ' ' }
+                    $rec.error = "servidor nao respondeu em /health. $tail"
+                    Write-Warn2 "[$bk] $($rec.error)"
+                } else {
+                    $rec.started = $true
+                    $body = ([ordered]@{ model = 'breeze-tts-2'; input = $pairText; response_format = 'json'; seed = 42 } | ConvertTo-Json -Compress)
+                    # 1 aquecimento (carga dos 4,7 GB + shaders) + 3 medicoes
+                    for ($rn = 1; $rn -le 4; $rn++) {
+                        $sw = [Diagnostics.Stopwatch]::StartNew()
+                        try {
+                            $resp = Invoke-RestMethod -Uri "$base/v1/audio/speech" -Method Post -Body $body `
+                                    -ContentType 'application/json' -TimeoutSec 1800
+                        } catch {
+                            $sw.Stop()
+                            $rec.error = "requisicao $rn falhou: $($_.Exception.Message)"
+                            Write-Warn2 "[$bk] $($rec.error)"
+                            break
+                        }
+                        $sw.Stop()
+                        $wavB = [Convert]::FromBase64String($resp.audio)
+                        $wi = Get-WavInfo -Bytes $wavB
+                        $item = [ordered]@{
+                            run = $rn; warmup = ($rn -eq 1)
+                            wall_s = [math]::Round($sw.Elapsed.TotalSeconds, 2)
+                            audio_s = $null; sample_rate = $null; rtf = $null
+                        }
+                        if ($wi) { $item.audio_s = $wi.seconds; $item.sample_rate = $wi.sr }
+                        if ($item.audio_s -and $item.audio_s -gt 0) {
+                            $item.rtf = [math]::Round($item.wall_s / $item.audio_s, 3)
+                        }
+                        $rec.requests += $item
+                        if ($rn -ge 2) {
+                            [System.IO.File]::WriteAllBytes((Join-Path $AudioDir ("gpu-paired-{0}-r{1}.wav" -f $bk, $rn)), $wavB)
+                        }
+                        Write-Info ("[{0}] r{1}: parede {2}s / audio {3}s / RTF {4}" -f $bk, $rn, $item.wall_s, $item.audio_s, $item.rtf)
+                    }
+                    $meas = @($rec.requests | Where-Object { (-not $_.warmup) -and $_.rtf })
+                    if ($meas.Count -gt 0) {
+                        $rtfs = @($meas | ForEach-Object { [double]$_.rtf } | Sort-Object)
+                        $rec.rtf_median = [math]::Round($rtfs[[int][math]::Floor($rtfs.Count / 2)], 3)
+                        $rec.rtf_min = $rtfs[0]
+                        $rec.rtf_max = $rtfs[$rtfs.Count - 1]
+                        Write-Ok "[$bk] RTF mediano $($rec.rtf_median) (min $($rec.rtf_min), max $($rec.rtf_max))"
+                    }
+                }
+            } catch {
+                $rec.error = $_.Exception.Message
+                Write-Warn2 "[$bk] $($rec.error)"
+            } finally {
+                if ($proc -and (-not $proc.HasExited)) {
+                    Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Seconds 2
+                }
+            }
+            $gpuPair.backends[$bk] = $rec
+        }
+
+        $vRec = $gpuPair.backends['vulkan']
+        $cRec = $gpuPair.backends['cpu']
+        if ($vRec.rtf_median -and $cRec.rtf_median -and $vRec.rtf_median -gt 0) {
+            $gpuPair.speedup_cpu_over_vulkan = [math]::Round($cRec.rtf_median / $vRec.rtf_median, 2)
+            $gpuPair.verdict = "Mesmo binario e modelo: Vulkan RTF $($vRec.rtf_median), CPU RTF $($cRec.rtf_median). A placa e $($gpuPair.speedup_cpu_over_vulkan)x mais rapida em ingles."
+            Write-Ok $gpuPair.verdict
+        } elseif ($vRec.rtf_median) {
+            $gpuPair.verdict = "Vulkan mediu RTF $($vRec.rtf_median), mas o lado CPU nao completou - sem comparacao."
+            Write-Warn2 $gpuPair.verdict
+        } else {
+            $gpuPair.verdict = 'Nao houve medicao pareada valida.'
+            Write-Warn2 $gpuPair.verdict
+        }
+        $gpuPair | ConvertTo-Json -Depth 8 | Out-File -FilePath (Join-Path $OutDir 'gpu-paired.json') -Encoding UTF8
+    }
 }
 
 # ------------------------------------------------------------- [8/10] geracao
@@ -1601,7 +1808,10 @@ if ($Gpu -and $gpuTest) {
     Add-Line "## GPU real (Vulkan / audio.cpp)"
     Add-Line ""
     Add-Line "- VRAM real pelo registro: **$($gpuTest.vram_real_gb) GB** (WMI reporta 4 GB por saturacao)"
-    foreach ($ad in $gpuTest.adapters) { Add-Line "  - $($ad.name): $($ad.vram_gb) GB" }
+    foreach ($ad in $gpuTest.adapters) {
+        if ($ad.vram_gb) { Add-Line "  - $($ad.name): $($ad.vram_gb) GB" }
+        else { Add-Line "  - $($ad.name): VRAM nao informada pelo driver" }
+    }
     Add-Line "- Runtime audio.cpp instalado: **$($gpuTest.runtime_installed)** (versao $($gpuTest.runtime_version))"
     Add-Line "- Vulkan enumerou GPU: **$($gpuTest.vulkan_gpu)**"
     if ($gpuTest.devices_raw.Count -gt 0) {
@@ -1615,7 +1825,25 @@ if ($Gpu -and $gpuTest) {
     Add-Line "- Modelo Breeze-TTS-2 baixado: $($gpuTest.model_installed)"
     Add-Line "- Geracao de teste: $($gpuTest.generated) (HTTP $($gpuTest.http))"
     if ($gpuTest.rtf) { Add-Line "- **RTF em Vulkan: $($gpuTest.rtf)** (gen $($gpuTest.gen_s)s / audio $($gpuTest.audio_s)s)" }
+    Add-Line "- Engine audiocpp disponivel depois da instalacao: $($gpuTest.engine_available) (routing $($gpuTest.engine_routing))"
     Add-Line "- Veredito: $($gpuTest.verdict)"
+}
+if ($Gpu -and $gpuPair) {
+    Add-Line ""
+    Add-Line "## Vulkan vs CPU (mesma placa, mesmo binario, mesmo GGUF)"
+    Add-Line ""
+    Add-Line "Texto unico em ingles, seed 42, 1 aquecimento descartado + 3 medicoes por backend."
+    Add-Line ""
+    Add-Line "| backend | RTF mediano | min | max |"
+    Add-Line "|---|---|---|---|"
+    foreach ($bk in @('vulkan', 'cpu')) {
+        $r = $gpuPair.backends[$bk]
+        if ($r) { Add-Line "| $bk | $($r.rtf_median) | $($r.rtf_min) | $($r.rtf_max) |" }
+    }
+    Add-Line ""
+    if ($gpuPair.speedup_cpu_over_vulkan) { Add-Line "- **Ganho da placa: $($gpuPair.speedup_cpu_over_vulkan)x** (CPU/Vulkan, mesmo modelo)" }
+    Add-Line "- Veredito: $($gpuPair.verdict)"
+    Add-Line "- `gpu-paired.json` - medicoes por requisicao; WAVs em ``audio/gpu-paired-*``"
 }
 if ($Gguf -and $ggufInfo) {
     Add-Line ""

@@ -75,7 +75,7 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 | A — investigação estática | ✅ executada |
 | B — instalação | ✅ app + modelo + 1 WAV gerado (falta fechar/reabrir) |
 | C — qualidade de voz | 🟡 10 amostras geradas + análise acústica objetiva; falta ouvinte humano |
-| D — AMD / Vulkan | ✅ medido: **RTF 25,9** em regime (10 frases, CPU). GGUF ausente no build; `/gpu` pendente |
+| D — AMD / Vulkan | ✅ **RTF 25,9** em CPU (OmniVoice) e **Vulkan funcionando** na RX 580 (audio.cpp/Breeze, en). Pareado Vulkan×CPU pendente |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |

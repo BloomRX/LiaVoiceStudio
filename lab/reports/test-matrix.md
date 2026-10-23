@@ -504,10 +504,114 @@ O passo `[7c]` do `run-lab.bat` (switch `/gpu`) faz isto sozinho:
 
 **O que este teste NÃO vai responder:** se o português fica mais rápido. Ele
 responde uma pergunta diferente e igualmente necessária à Fase D: *"a RX 580 é
-utilizável por algum motor deste app, hoje, sem compilar nada?"* Se o RTF do
-Breeze em Vulkan ficar próximo do RTF em CPU, o ganho de GPU nesta placa é
-pequeno e a conta de §5.4 (26×) fica definitivamente fechada. Se ficar muito
-menor, existe uma placa utilizável — mas sem modelo em português para colocá-la.
+utilizável por algum motor deste app, hoje, sem compilar nada?"*
+
+#### Resultado da primeira execução (`20261023-171428`, 2026-10-23 17:14)
+
+| Verificação | Resultado |
+|---|---|
+| VRAM pelo registro | **8 GB** (`8589934592` B) — confirma a correção do operador |
+| Runtime `audio.cpp` | **instalado**, `v0.7.4`, em `%APPDATA%\OmniVoice\engines\audio-cpp\0.7.4\windows-x64` |
+| `--list-devices` | **`Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]`** + `CPU:0 "AMD Ryzen 5 5500"` — `available_devices=2` |
+| Breeze-TTS-2 | `installed=true`, `incomplete=false`, **5.255.331.072 B** (4,89 GiB) |
+| Requisição pela API | HTTP **200**, `x-gen-time` 96,86 s, `x-audio-duration` 8,32 s → **RTF 11,64** |
+
+**A placa funciona.** É o primeiro resultado afirmativo da Fase D em Windows +
+AMD, e ele contradiz a expectativa de que Vulkan fosse inacessível nesta GPU.
+
+Linha do backend, copiada da saída do binário:
+
+```
+ggml_vulkan: 0 = AMD Radeon RX 580 2048SP (AMD proprietary driver) | uma: 0 |
+fp16: 0 | bf16: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 |
+matrix cores: none
+```
+
+Três consequências que a linha acima entrega de graça:
+
+1. **`fp16: 0` e `bf16: 0`** — a Polaris não tem armazenamento fp16. O GGML cai no
+   caminho **fp32**, o que desperdiça metade da banda e explica por que o ganho
+   sobre a CPU não é maior.
+2. **`warp size: 64`** — é o wavefront da GCN, o dobro do de uma GPU moderna;
+   menos paralelismo efetivo por instrução.
+3. **`matrix cores: none`** — não há tensor cores; multiplicações de matriz
+   grandes passam por ALUs comuns.
+
+**Duas ressalvas que impedem comemorar:**
+
+- **O número de RTF da tabela não é atribuível com certeza.** A requisição passou
+  pela API do app com `engine=audiocpp`, mas a resposta **não devolve qual motor
+  atendeu**, e a lista de motores lida antes da instalação dizia
+  `audiocpp available=false — "A file this engine needs is missing"`. Se o motor
+  estivesse indisponível, o app cairia no motor ativo (`omnivoice`) e o WAV seria
+  de outra voz. A análise acústica sugere Breeze (ver abaixo), mas **sugerir não é
+  provar**.
+- **RTF 11,64 não é comparável ao 25,9** da §5.0.1: são **modelos diferentes**
+  (Breeze × OmniVoice) e o 96,86 s inclui a carga dos 4,7 GB de pesos e a
+  compilação de shaders, porque foi a primeira requisição daquele processo.
+  Comparar os dois seria comparar alho com cebola.
+
+**Checagem acústica do WAV gerado** (YIN, mesmo método da §4.4):
+
+| Arquivo | F0 mediano | p10–p90 | centroide | pico | clipping |
+|---|---|---|---|---|---|
+| `audio/gpu-vulkan.wav` (inglês) | **266,7 Hz** | 194–348 | **2076 Hz** | 0,782 | 0,0% |
+| `audio/C6-r2.wav` (OmniVoice, pt) | 139,5 Hz | 108–180 | 2921 Hz | 0,782 | 0,0% |
+
+Timbre e altura **muito diferentes** — consistente com "outro motor, outra voz",
+o que reforça a hipótese de que o Breeze atendeu a requisição. Ainda assim, duas
+vozes diferentes também seriam esperadas de dois textos diferentes no mesmo
+motor, então isto é **indício, não prova**. F0 266,7 Hz num texto neutro também é
+alto: vale ouvir o arquivo para saber se é a voz do modelo ou artefato.
+
+### 5.3.1 A medição que falta: Vulkan e CPU na mesma balança
+
+O `/gpu` mediu **uma** requisição pela API, com carga de modelo e shaders dentro.
+Isso não permite dizer "a placa é mais rápida que o Ryzen" — a missão proíbe
+essa frase sem medição pareada. Por isso o script ganhou o passo `[7d]`, que
+**sobe o mesmo `audiocpp_server.exe` duas vezes**, com `--backend vulkan` e
+`--backend cpu`, apontando para o **mesmo GGUF**, com o **mesmo texto** e o
+**mesmo seed**:
+
+- 1 requisição de aquecimento por backend, **descartada** (é ela que paga a carga
+  dos 4,7 GB e a compilação dos shaders);
+- **3 requisições medidas** por backend;
+- duração do áudio lida do **cabeçalho WAV** devolvido, não estimada;
+- RTF = parede ÷ duração; resultado em `gpu-paired.json` + WAVs
+  `audio/gpu-paired-<backend>-r<N>.wav` para escuta.
+
+Por que isso importa mais do que o número do `[7c]`: se o ganho real for 3×, o RTF
+de um modelo em português cairia de 25,9 para ~8,6 — ainda 9× acima do tempo
+real. Se for 1,2×, o Vulkan nesta placa é ruído e a Fase D está encerrada **com
+número**. As duas respostas mudam a recomendação, e nenhuma delas pode ser
+adivinhada.
+
+### 5.3.2 Uma armadilha do próprio app
+
+`backend/engines/audiocpp/__init__.py` v0.5.6 declara:
+
+```python
+gpu_compat = ("cpu",)
+```
+
+Ou seja: **mesmo com Vulkan funcionando e enumerado**, o roteamento do app trata
+este motor como CPU-only e o servidor gerenciado sobe com `backend: "cpu"`. O
+`/engines/tts` confirma: `routing_status: cpu_fallback`.
+
+Existe contorno, e ele é por variável de ambiente, não por interface:
+
+```
+set OMNIVOICE_AUDIOCPP_BACKEND=vulkan
+set OMNIVOICE_AUDIOCPP_DEVICE=0
+```
+
+(`resolve_compute_selection()` honra `OMNIVOICE_AUDIOCPP_BACKEND`/`_DEVICE`;
+`select_device()` aceita `vulkan` explicitamente.)
+
+**Consequência para a avaliação:** alguém que instale este app, veja a RX 580
+enumerada e espere GPU no Breeze **não terá GPU** — a menos que descubra a
+variável. Isso é um item de ergonomia/documentação que vale registrar, mesmo que
+o motor não fale português.
 
 ### 5.4 Por que não vale insistir no Vulkan
 
@@ -515,8 +619,9 @@ Mesmo se o binário GGML fosse compilado com backend Vulkan, a conta não fecha:
 
 | Cenário | RTF estimado | Fala de 10 s |
 |---|---|---|
-| CPU (medido) | 25,9 | 4,3 min |
-| Vulkan, ganho típico 3–5× nesta placa | 5–9 | 50–90 s |
+| CPU (medido, OmniVoice pt) | 25,9 | 4,3 min |
+| Vulkan nesta placa (Breeze en, **medido** — não comparável, §5.2.1) | 11,6 | ~1,9 min |
+| Vulkan, ganho típico 3–5× sobre o mesmo modelo | 5–9 | 50–90 s |
 | Necessário para conversa | **< 1** | < 10 s |
 
 Para uso conversacional seria preciso **~26×** de ganho. Nenhuma GPU Polaris
@@ -711,7 +816,7 @@ implementação, conforme exigido.
 | A — investigação estática | **Alta** | INSPECIONADO / TESTADO (estático) |
 | B — instalação | **Alta** | ✅ TESTADO na máquina real (v0.5.6, 214.447.484 B, sha256 fixado) |
 | C — qualidade de voz | **Média** | 10 frases geradas + análise acústica (§4.4); **audição humana PENDENTE** |
-| D — AMD/Vulkan | **Alta para o que foi testado** | ✅ RTF 25,9 medido em CPU · GGUF testado e ausente · `/gpu` (audio.cpp/Vulkan) **PENDENTE** |
+| D — AMD/Vulkan | **Alta** | ✅ RTF 25,9 em CPU · GGUF ausente · **Vulkan enumera a RX 580 e gera áudio** · pareado Vulkan×CPU **PENDENTE** (`[7d]`) |
 | E — API | **Alta** (código **e** runtime) | ✅ TESTADO — backend exercitado por HTTP |
 | F — licenças | **Alta** | ✅ INSPECIONADO + confirmado em runtime |
 | G — integração | **Análise** | — |

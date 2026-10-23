@@ -124,8 +124,24 @@ O `/gpu` faz, em ordem:
 6. grava `gpu.json` e a seção "GPU real (Vulkan / audio.cpp)" no `summary.md`.
 
 **Leia o resultado com cuidado:** esse RTF mede a **placa**, não o português — o
-Breeze-TTS-2 só fala inglês e chinês. Ele responde "a RX 580 é utilizável por
-algum motor deste app hoje, sem compilar nada?", e é a última lacuna da Fase D.
+Breeze-TTS-2 só fala inglês e chinês. E ele **não é atribuível**: a resposta da
+API não diz qual motor atendeu, então se o `audiocpp` estivesse indisponível o
+app teria caído no motor ativo.
+
+Por isso existe o passo seguinte, `[7d] — Vulkan vs CPU (medição pareada)`, que
+roda sozinho no mesmo `/gpu` quando o runtime e o modelo já estão instalados:
+
+- sobe o **mesmo** `audiocpp_server.exe` duas vezes, com `--backend vulkan` e
+  `--backend cpu`, apontando para o **mesmo GGUF**;
+- 1 requisição de aquecimento por backend (**descartada** — é ela que paga a
+  carga dos 4,7 GB e a compilação de shaders);
+- **3 requisições medidas** por backend, mesmo texto e mesmo seed;
+- duração lida do **cabeçalho WAV**, RTF = parede ÷ duração;
+- grava `gpu-paired.json` e os WAVs `audio/gpu-paired-<backend>-r<N>.wav`.
+
+É esse número — e só ele — que autoriza dizer "Vulkan é mais rápido que a CPU
+nesta placa". O `[7c]` responde *se a placa funciona*; o `[7d]` responde
+*quanto ela vale*.
 
 ### O único clique que não dá para automatizar
 

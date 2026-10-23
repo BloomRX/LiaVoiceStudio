@@ -341,9 +341,33 @@ preencher a grade de `test-matrix.md` §4.2.
 Some-se: o VoiceStudio fixa `audio.cpp` **v0.7.4** enquanto o upstream está em
 **v0.9.2** — defasagem relevante para um runtime que evolui rápido.
 
-**Conclusão da Fase D:** a pergunta "Vulkan é mais rápido?" **não chega a ser
-respondida** porque a pergunta anterior — "Vulkan serve para o nosso caso?" —
-tem resposta negativa. Medir seria desperdício de tempo.
+**Conclusão da Fase D:** a pergunta "Vulkan serve para o nosso caso?" tem
+resposta negativa por dois motivos independentes (idioma e licença), e a placa
+não muda isso.
+
+**Mas o "não recomendado" precisa ser exato sobre o que foi medido.** Em
+2026-10-23 o `/gpu` rodou e o resultado foi afirmativo onde todos esperavam
+negativo:
+
+```
+Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]
+CPU:0    "AMD Ryzen 5 5500" [CPU]
+available_devices=2
+```
+
+**A RX 580 funciona em Vulkan com o binário do app**, sem compilar nada, com o
+runtime `audio.cpp` v0.7.4 instalado pelo próprio serviço do app e 4,89 GiB de
+pesos instalados. O que ainda não existe é **medição pareada** Vulkan × CPU
+(passo `[7d]`, escrito e não executado) e **modelo em português** nesse runtime.
+
+Duas armadilhas registradas na ocasião:
+
+- **O app não usa a placa sozinho.** `gpu_compat = ("cpu",)` no motor
+  `audiocpp`: o roteamento o trata como CPU-only mesmo com Vulkan enumerado.
+  Usar a GPU exige `OMNIVOICE_AUDIOCPP_BACKEND=vulkan`.
+- **A placa não tem fp16.** O backend reporta `fp16: 0 | bf16: 0 | matrix cores:
+  none | warp size: 64` — tudo roda em fp32, sem tensor cores. É por isso que
+  esperar 26× de ganho dela seria fantasia; 3–5× é o teto realista.
 
 **Correção de fato (operador, 2026-10-23):** a RX 580 tem **8 GB de VRAM**, não
 4. O valor de 4 GB era saturação do `AdapterRAM` do WMI. Isso derruba o
@@ -373,6 +397,12 @@ Vulkan não está no pacote. Testar Vulkan exigiria compilar o `omnivoice.cpp`
 Ou seja: **"sem caminho de GPU para português nesta máquina" está confirmado
 duas vezes** — uma por análise (PyTorch não tem Vulkan; o motor GGML não está
 no build) e uma por medição (`device=cpu`, `gpu_routing` em CPU).
+
+**O que mudou com o `/gpu`, e o que não mudou.** Mudou o veredito sobre *a
+placa*: ela é acessível por Vulkan com o runtime que o app instala, e isso está
+medido (`Vulkan:0 ... [GPU]`). Não mudou o veredito sobre *o português*: o único
+motor Vulkan do app fala inglês e chinês. A frase correta agora é **"há GPU
+utilizável, e ela não fala a nossa língua"**, não "não há GPU".
 
 ### 4.3 VoxCPM2 / CosyVoice (Apache-2.0, com português)
 

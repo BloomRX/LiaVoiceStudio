@@ -93,8 +93,9 @@ mais. Dados de `evidence/windows/20261023-140732/` (e `140605`, idêntica).
 | RAM | **15,89 GB** total, **6,65 GB livres** na coleta |
 | GPU | **AMD Radeon RX 580 2048SP** — driver **31.0.21925.1001** |
 | GPU (virtual) | Parsec Virtual Display Adapter 0.45.0.0 |
-| VRAM | **8 GB** (informado pelo operador) — o `Win32_VideoController.AdapterRAM` reporta 4.294.967.296 porque o campo é um `uint32` e satura em 4 GB |
-| Vulkan | **funcional** — loader **1.3.250** |
+| VRAM | **8 GB**, medido (`8589934592` B em `HardwareInformation.qwMemorySize`). O `Win32_VideoController.AdapterRAM` reporta 4.294.967.296 porque o campo é um `uint32` e satura em 4 GB |
+| Vulkan | **funcional** — loader **1.3.250**; e **medido com o binário do app** (`ggml_vulkan`): `Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]`, `available_devices=2` |
+| Recursos da GPU (relatados pelo runtime) | `fp16: 0` · `bf16: 0` · `warp size: 64` · `shared memory: 32768` · `int dot: 0` · `matrix cores: none` |
 | Disco | C: 203,7 GB · D: 153,1 GB · F: 29,0 GB · G: 5,2 GB · **J: 112,1 GB livres** |
 | VoiceStudio | **não instalado / não em execução** (`/health` recusou conexão) |
 
@@ -130,8 +131,11 @@ geração, `gfx803`.** Três consequências independentes:
    ausência do runtime GGML no build do Windows passa a ser o **único** motivo
    técnico pelo qual não há GPU em português aqui.
 
-**Vulkan, por outro lado, funciona nesta placa.** O loader 1.3.250 respondeu, e
-a RX 580 tem suporte Vulkan maduro no driver Adrenalin.
+**Vulkan, por outro lado, funciona nesta placa** — e isso deixou de ser
+inferência: o binário que o app instala enumerou a placa
+(`Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]`) e gerou áudio em inglês com o
+Breeze-TTS-2. O loader é 1.3.250 e a RX 580 tem suporte Vulkan maduro no driver
+Adrenalin, mas o que prova o caminho é o teste, não o driver.
 
 O problema é o de sempre: **o único motor que usa Vulkan (Breeze-TTS-2) só fala
 inglês e chinês.**
