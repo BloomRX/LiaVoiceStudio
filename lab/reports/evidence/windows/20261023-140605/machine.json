@@ -1,0 +1,81 @@
+﻿{
+    "collected_at":  "2026-10-23T14:06:05.7075458-03:00",
+    "collector":  "1.0.0",
+    "powershell":  "5.1.26100.9711",
+    "computer":  "LUCASPC",
+    "user":  "lucas",
+    "is_admin":  false,
+    "os":  {
+               "caption":  "Microsoft Windows 11 Home",
+               "version":  "10.0.26200",
+               "build":  "26200",
+               "arch":  "64 bits",
+               "installed":  "\/Date(1765623088000)\/",
+               "last_boot":  "\/Date(1792752631500)\/"
+           },
+    "cpu":  {
+                "name":  "AMD Ryzen 5 5500                               ",
+                "manufacturer":  "AuthenticAMD",
+                "cores":  6,
+                "logical":  12,
+                "max_clock_mhz":  3600,
+                "l3_cache_kb":  16384
+            },
+    "gpus":  [
+                 {
+                     "name":  "Parsec Virtual Display Adapter",
+                     "vendor":  "Parsec Cloud, Inc.",
+                     "driver_version":  "0.45.0.0",
+                     "driver_date":  "\/Date(1706140800000)\/",
+                     "vram_gb_cim":  null,
+                     "video_mode":  null,
+                     "status":  "OK"
+                 },
+                 {
+                     "name":  "AMD Radeon RX 580 2048SP",
+                     "vendor":  "Advanced Micro Devices, Inc.",
+                     "driver_version":  "31.0.21925.1001",
+                     "driver_date":  "\/Date(1779235200000)\/",
+                     "vram_gb_cim":  4,
+                     "video_mode":  "1920 x 1080 x 4294967296 cores",
+                     "status":  "OK"
+                 }
+             ],
+    "ram_gb":  15.89,
+    "ram_free_gb":  6.93,
+    "disks":  [
+                  {
+                      "drive":  "C:",
+                      "label":  "",
+                      "total_gb":  475.95,
+                      "free_gb":  204.31
+                  },
+                  {
+                      "drive":  "D:",
+                      "label":  "Jogos",
+                      "total_gb":  465.76,
+                      "free_gb":  153.14
+                  },
+                  {
+                      "drive":  "F:",
+                      "label":  "Unreal",
+                      "total_gb":  83.84,
+                      "free_gb":  29.04
+                  },
+                  {
+                      "drive":  "G:",
+                      "label":  "Google Drive",
+                      "total_gb":  15,
+                      "free_gb":  5.25
+                  },
+                  {
+                      "drive":  "J:",
+                      "label":  "Jogos SSD",
+                      "total_gb":  447.12,
+                      "free_gb":  112.13
+                  }
+              ],
+    "vulkaninfo":  "vulkaninfo.exe : ERROR: [Loader Message] Code 0 : loader_get_json: Failed to open JSON file C:\\Program Files \r\n(x86)\\Epic Games\\Epic Online Services\\managedArtifacts\\98bc04bc842e4906993fd6d6644ffb8d\\EOSOverlayVkLayer-Win64.json\r\nNo J:\\LiaVoiceStudio\\lab\\tools\\collect-windows.ps1:246 caractere:16\r\n+         $vk = (\u0026 vulkaninfo --summary 2\u003e\u00261 | Out-String)\r\n+                ~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (ERROR: [Loader ...ayer-Win64.json:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n==========\r\nVULKANINFO\r\n==========\r\n\r\nVulkan Instance Version: 1.3.250\r\n\r\n\r\nInstance Extensions: count = 13\r\n-------------------------------\r\nVK_EXT_debug_report                    : extension revision 10\r\nVK_EXT_debug_utils                     : extension revision 2\r\nVK_EXT_swapchain_colorspace            : extension revision 4\r\nVK_KHR_device_group_creation           : extension revision 1\r\nVK_KHR_external_fence_capabilities     : extension revision 1\r\nVK_KHR_external_memory_capabilities    : extension revision 1\r\nVK_KHR_external_semaphore_capabilities : extension revision 1\r\nVK_KHR_get_physical_device_properties2 : extension revision 2\r\nVK_KHR_get_surface_capabilities2       : extension revision 1\r\nVK_KHR_portability_enumeration         : extension revision 1\r\nVK_KHR_surface                         : extension revision 25\r\nVK_KHR_win32_surface                   : extension revision 6\r\nVK_LUNARG_direct_driver_loading        : extension revision 1\r\n\r\nInstance Layers: count = 12\r\n---------------------------\r\nVK_LAYER_AMD_switchable_graphics  AMD switchable graphics layer                                                                                     1.3.260  version 1\r\nVK_LAYER_KHRONOS_profiles         Khronos Profiles layer                                                                                            1.4.357  version 1\r\nVK_LAYER_KHRONOS_shader_object    Khronos Shader object layer                                                                                       1.4.357  version 1\r\nVK_LAYER_KHRONOS_synchronization2 Khronos Synchronization2 layer                                                                                    1.4.357  version 1\r\nVK_LAYER_KHRONOS_validation       Khronos Validation Layer                                                                                          1.4.357  version 1\r\nVK_LAYER_LUNARG_api_dump          LunarG API dump layer                                                                                             1.4.357  version 2\r\nVK_LAYER_LUNARG_crash_diagnostic  Crash Diagnostic Layer is a crash/hang debugging tool that helps determines GPU progress in a Vulkan application. 1.4.357  version 1\r",
+    "dotnet":  null,
+    "j_drive":  true
+}
