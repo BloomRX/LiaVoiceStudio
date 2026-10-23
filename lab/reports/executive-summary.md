@@ -369,6 +369,15 @@ Duas armadilhas registradas na ocasião:
   none | warp size: 64` — tudo roda em fp32, sem tensor cores. É por isso que
   esperar 26× de ganho dela seria fantasia; 3–5× é o teto realista.
 
+**O que ainda não foi medido, e por quê.** A tentativa de repetir o teste
+(`20261023-190131`) não mediu nada: o app não expôs a API em 30 minutos, com
+**0,92 GB de RAM livre** de 15,89 GB. Provavelmente um `audiocpp_server` órfão da
+execução anterior segurando os 4,7 GB de pesos — mas a coleta não prova isso,
+então fica como hipótese. O coletor foi corrigido para (a) medir a placa **sem
+passar pela API** quando o runtime já está no disco e (b) diagnosticar a falha
+em 2 minutos em vez de 30. **A medição pareada Vulkan × CPU continua
+PENDENTE** — e é dela que depende dizer se a placa vale algo em número.
+
 **Correção de fato (operador, 2026-10-23):** a RX 580 tem **8 GB de VRAM**, não
 4. O valor de 4 GB era saturação do `AdapterRAM` do WMI. Isso derruba o
 argumento de capacidade — com 8 GB, até o modelo em FP16 caberia. **Não derruba

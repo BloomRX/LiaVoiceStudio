@@ -564,6 +564,41 @@ vozes diferentes também seriam esperadas de dois textos diferentes no mesmo
 motor, então isto é **indício, não prova**. F0 266,7 Hz num texto neutro também é
 alto: vale ouvir o arquivo para saber se é a voz do modelo ou artefato.
 
+#### Tentativa de repetição que falhou (`20261023-190131`)
+
+A segunda execução do `/gpu` **não mediu nada**, e o motivo é evidência útil:
+
+```
+RAM     : 15.89 GB total, 0.92 GB livre
+[5/10]  esperando /health responder (ate 1800 s)
+        aguardando a API... 1260s ... 1800s
+        timeout esperando a API
+```
+
+O app foi iniciado, ficou 30 minutos sem expor a API, e o script esperou às
+cegas. Duas leituras possíveis, e a coleta não distingue entre elas porque não
+foi instrumentada para isso:
+
+1. **memória**: 0,92 GB livres é pouco para o backend Python do app subir com
+   PyTorch; um `audiocpp_server` órfão da execução anterior (que carrega 4,7 GB
+   de pesos) explicaria os ~14 GB ocupados;
+2. **interação**: o app pode ter aberto um diálogo esperando clique — ele não é
+   detectável por HTTP.
+
+**O que mudou no coletor por causa disso** (commit `0026155`):
+
+- o `[7c]` procura o `audiocpp_server.exe` **no disco**, não na API: se o
+  runtime já está instalado, ele mede a placa mesmo com o app fora do ar;
+- o `[7d]` aceita o GGUF achado no cache de arquivos, sem confirmação da API;
+- novo diagnóstico automático aos 120 s, aos 420 s e no fim: processos
+  (`VoiceStudio`, `python`, `audiocpp_server` órfão com MB), RAM livre, top 8
+  consumidores e cópia dos logs do app para `app-logs/`;
+- espera abortada se o app morreu e não há backend;
+- em `/gpu`, a espera da API cai de 1800 s para 420 s.
+
+**Lição registrada:** um coletor que espera 30 minutos sem coletar diagnóstico
+é um coletor que falha em silêncio. O próximo `/gpu` vai dizer *por que* falhou.
+
 ### 5.3.1 A medição que falta: Vulkan e CPU na mesma balança
 
 O `/gpu` mediu **uma** requisição pela API, com carga de modelo e shaders dentro.
