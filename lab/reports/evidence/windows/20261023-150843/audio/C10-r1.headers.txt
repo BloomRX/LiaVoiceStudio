@@ -1,0 +1,12 @@
+HTTP/1.1 200 OK
+date: Fri, 23 Oct 2026 18:43:59 GMT
+server: uvicorn
+x-audio-id: 341995cc
+x-gen-time: 207.07
+x-audio-path: 341995cc.wav
+x-seed: 42
+x-audio-duration: 8.04
+content-length: 385964
+content-type: audio/wav
+x-omnivoice-backend: 0.5.6
+

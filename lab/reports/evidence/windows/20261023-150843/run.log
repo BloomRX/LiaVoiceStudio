@@ -1,0 +1,122 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261023150843
+Nome de Usuário: LUCASPC\lucas
+Executar como Usuário: LUCASPC\lucas
+Nome da Configuração: 
+Computador: LUCASPC (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\lucas\AppData\Local\Temp\voicestudio-lab.ps1 -Voice
+ID do Processo: 18168
+PSVersion: 5.1.26100.9711
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9711
+BuildVersion: 10.0.26100.9711
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+================================================================
+ VoiceStudio Lab - instala, testa e coleta (Windows + AMD)
+ Versao do coletor: 1.0.0
+ Inicio: 2026-10-23 15:08:43
+ Saida:  J:\LiaVoiceStudio\lab\reports\evidence\windows\20261023-150843
+================================================================
+ Modo: VOZ (corpus completo)
+
+[1/10] Verificando pre-requisitos
+     PowerShell 5.1.26100.9711
+     OK    curl disponivel (curl.exe)
+     OK    git 2.52.0.windows.1
+     OK    repositorio git, branch 'arena/e6163ffc-liavoicestudio'
+
+[2/10] Coletando hardware e sistema
+     OK    Microsoft Windows 11 Home build 26200 (64 bits)
+     OK    CPU: AMD Ryzen 5 5500 (6C/12T, AMD)
+     OK    GPU: Parsec Virtual Display Adapter (driver 0.45.0.0)
+     OK    GPU: AMD Radeon RX 580 2048SP (driver 31.0.21925.1001)
+     C: 190.3 GB livres de 475.9 GB
+     D: 153.1 GB livres de 465.8 GB
+     F: 29 GB livres de 83.8 GB
+     G: 5.2 GB livres de 15 GB
+     J: 112.1 GB livres de 447.1 GB
+     OK    vulkaninfo encontrado; resumo salvo
+     OK    Unidade J: presente
+
+[3/10] Procurando a instalacao do VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Roaming\omnivoice
+     OK    encontrado: C:\Users\lucas\AppData\Local\omnivoice
+     OK    7 processo(s) relacionado(s)
+     OK    porta 3900 escutando em 127.0.0.1 (loopback - correto)
+
+[4/10] Instalando o VoiceStudio
+     OK    VoiceStudio ja instalado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     instalacao pulada
+
+[5/10] Iniciando o VoiceStudio
+     OK    o app ja esta rodando
+     esperando /health responder (ate 1800 s)...
+
+     ATENCAO - existe UM passo que so pode ser feito na janela do app:
+       1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"
+          (Python + dependencias, varios GB). Clique nesse botao.
+       2. quando a API subir, este script continua sozinho.
+       Nao feche esta janela do cmd.
+
+     OK    API respondeu: o app esta pronto
+
+[6/10] Sondando a API local
+     OK    /health -> status=ok device=cpu version=0.5.6
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+     OK    17 motores; 3 disponivel(is); ativo='omnivoice'
+       omnivoice -> device=cpu clone=True design=
+       kittentts -> device=cpu clone=False design=
+       omnivoice-subprocess -> device=cpu clone=True design=
+     motor inexistente -> HTTP 400 (esperado 400)
+     modelo inexistente -> HTTP 400 (esperado 400)
+
+[7/10] Garantindo o modelo TTS (k2-fsa/OmniVoice)
+     modelo  : k2-fsa/OmniVoice
+     tamanho : ~2.4 GB no primeiro download
+     origem  : Hugging Face, via o proprio app
+     download iniciado; acompanhando /models/install/status
+     OK    download do modelo concluido
+     OK    omnivoice disponivel (device=cpu)
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+     sem endpoint de aceite de licenca (nada a fazer)
+
+[8/10] Geracao de voz (corpus pt-BR)
+     10 geracao(oes) planejada(s)
+     motor: o que estiver ativo no app
+     [1/10] C1-r1 ...
+OK  161.108288s  audio=6.01s  gen=160.7s  rtf=26.739
+     [2/10] C2-r1 ...
+OK  174.742807s  audio=6.92s  gen=174.35s  rtf=25.195
+     [3/10] C3-r1 ...
+OK  302.463004s  audio=11.76s  gen=302.07s  rtf=25.686
+     [4/10] C4-r1 ...
+OK  229.446291s  audio=8.68s  gen=229.05s  rtf=26.388
+     [5/10] C5-r1 ...
+OK  237.590412s  audio=9.48s  gen=237.2s  rtf=25.021
+     [6/10] C6-r1 ...
+OK  39.891859s  audio=1.01s  gen=39.51s  rtf=39.119
+     [7/10] C7-r1 ...
+OK  584.019431s  audio=22.43s  gen=583.62s  rtf=26.02
+     [8/10] C8-r1 ...
+OK  169.936608s  audio=6.68s  gen=169.4s  rtf=25.359
+     [9/10] C9-r1 ...
+OK  180.239623s  audio=7.04s  gen=179.85s  rtf=25.547
+     [10/10] C10-r1 ...
+OK  207.472762s  audio=8.04s  gen=207.07s  rtf=25.755
+     OK    medicoes salvas em measurements.csv
+
+[9/10] Escrevendo o resumo
+     OK    summary.md escrito
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261023154727
+**********************

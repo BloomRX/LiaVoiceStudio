@@ -1,0 +1,60 @@
+﻿{
+    "data_dirs_found":  [
+                            "C:\\Users\\lucas\\AppData\\Local\\Programs\\VoiceStudio",
+                            "C:\\Users\\lucas\\AppData\\Roaming\\omnivoice",
+                            "C:\\Users\\lucas\\AppData\\Local\\omnivoice"
+                        ],
+    "processes":  [
+                      {
+                          "pid":  16924,
+                          "name":  "python",
+                          "ram_mb":  5.6,
+                          "started":  "\/Date(1792778773098)\/"
+                      },
+                      {
+                          "pid":  18792,
+                          "name":  "python",
+                          "ram_mb":  4816.3,
+                          "started":  "\/Date(1792778773125)\/"
+                      },
+                      {
+                          "pid":  3128,
+                          "name":  "VoiceStudio",
+                          "ram_mb":  214.7,
+                          "started":  "\/Date(1792778765658)\/"
+                      },
+                      {
+                          "pid":  9432,
+                          "name":  "VoiceStudio",
+                          "ram_mb":  188.4,
+                          "started":  "\/Date(1792778766126)\/"
+                      },
+                      {
+                          "pid":  9784,
+                          "name":  "VoiceStudio",
+                          "ram_mb":  119.9,
+                          "started":  "\/Date(1792778766076)\/"
+                      },
+                      {
+                          "pid":  16328,
+                          "name":  "VoiceStudio",
+                          "ram_mb":  57.2,
+                          "started":  "\/Date(1792778766082)\/"
+                      },
+                      {
+                          "pid":  19308,
+                          "name":  "voicestudio-desktop-bridge",
+                          "ram_mb":  8.9,
+                          "started":  "\/Date(1792778785171)\/"
+                      }
+                  ],
+    "port_3900":  [
+                      {
+                          "local_address":  "127.0.0.1",
+                          "local_port":  3900,
+                          "owning_pid":  18792,
+                          "loopback_only":  true
+                      }
+                  ],
+    "version_file":  null
+}
