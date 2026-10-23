@@ -37,7 +37,7 @@ O arquivo é **ASCII puro** e CRLF, para não depender de code page.
 
 | Comando | O que faz | Tempo aprox. |
 |---|---|---|
-| `run-lab.bat` | Instala o app, baixa o modelo, gera **1 frase curta** (C6) | 20–60 min |
+| `run-lab.bat` | Instala o app, baixa o modelo, gera **C6 duas vezes** (1ª = aquecimento) | 20–60 min |
 | `run-lab.bat /voice` | Corpus completo C1..C10, uma vez cada | +5–20 min |
 | `run-lab.bat /full` | Corpus + **4 repetições de C7** | +15–45 min |
 | `run-lab.bat /noinstall` | não baixa nem instala o app | — |
@@ -180,8 +180,10 @@ UTF-8 **sem BOM** e envia por `curl -F "text=<arquivo"`.
 Calculado como `X-Gen-Time / X-Audio-Duration`, ambos vindos do servidor — não é
 estimativa. RTF < 1 significa mais rápido que tempo real.
 
-**A execução 1 inclui carga de modelo.** Compare a partir da 2. Por isso o modo
-`/full` repete C7 quatro vezes.
+**A execução 1 inclui carga de modelo** — 2,4 GB de pesos. Três coletas com a
+mesma frase deram 40 s, 173 s e 39 s: o que varia é o carregamento, não o motor.
+Por isso o modo padrão já gera **duas vezes** (a 1ª é descartada) e o `/full`
+repete C7 quatro vezes.
 
 **Cuidado com timeout:** `GET /generate/budget` devolve `executionBase` 600 s
 (CPU) **mais** `progressExtensionCap` 1800 e `cpuAutoCeiling` 7200. Um cliente

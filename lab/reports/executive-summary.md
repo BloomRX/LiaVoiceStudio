@@ -143,14 +143,22 @@ Em 2026-10-23 14:44 a máquina-alvo gerou áudio pela primeira vez
 À primeira vista, **40 segundos de processamento por segundo de fala**. Uma fala
 de 10 s levaria uns 6,6 min.
 
-Uma segunda execução, 6 minutos depois e com o app reaberto, deu **173 s** para
-1,09 s de áudio — **RTF 158,5**. Mesma frase, mesma máquina, mesma versão.
+Repetida duas vezes mais, mesma frase, mesma máquina, mesmo app reaberto:
 
-**Nenhum dos dois números é o RTF do sistema.** São as primeiras gerações de
-processos recém-abertos, e portanto incluem o carregamento de 2,4 GB de pesos. A
-dispersão de 4× entre duas execuções "iguais" prova que essa etapa domina a
-medição — o candidato mais provável é o cache de página do SO, quente numa
-coleta e frio na outra.
+| Coleta | `X-Gen-Time` | RTF |
+|---|---|---|
+| 14:44 | 40,32 s | 39,9 |
+| 14:50 | **172,74 s** | **158,5** |
+| 14:57 | 39,45 s | 39,1 |
+
+**Nenhuma das três é o RTF do sistema.** São as primeiras gerações de processos
+recém-abertos, e portanto incluem o carregamento de 2,4 GB de pesos.
+
+O 173 s é um **outlier de causa não determinada**: leitura fria do disco,
+varredura de antivírus sobre arquivos recém-gravados ou contenção com outro
+processo — com três amostras não dá para separar. O que se pode afirmar é que o
+carregamento domina a primeira execução e que ele varia muito mais do que o
+motor.
 
 O regime permanente sai das execuções 2+ dentro da mesma sessão (`/voice`), e é
 esse número que decide se o VoiceStudio serve para conversa ou só para geração

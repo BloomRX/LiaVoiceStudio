@@ -1181,9 +1181,13 @@ if (-not $corpusFiles) {
     } elseif ($Voice) {
         foreach ($f in $corpusFiles) { $plan += @{ file = $f; rep = 1 } }
     } else {
+        # Duas execucoes: a primeira e descartada como aquecimento. Medir so a
+        # primeira mede o carregamento dos pesos (2,4 GB), nao o motor - tres
+        # coletas com a mesma frase deram 40 s, 173 s e 39 s justamente por isso.
         $c6 = $corpusFiles | Where-Object { $_.BaseName -eq 'C6' }
         $pick = if ($c6) { $c6 } else { $corpusFiles[0] }
         $plan += @{ file = $pick; rep = 1 }
+        $plan += @{ file = $pick; rep = 2 }
     }
 
     Write-Info "$($plan.Count) geracao(oes) planejada(s)"

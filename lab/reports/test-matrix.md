@@ -240,31 +240,33 @@ PyTorch — nem no Windows, nem no Linux.
 | `X-Gen-Time` (servidor) | 40,32 s |
 | **RTF** | **39,9** |
 
-Segunda execução, mesma frase, app reiniciado pelo script
-(`evidence/windows/20261023-145020/`):
+Repetida duas vezes mais, mesma frase, app reaberto a cada vez:
 
-| Métrica | Valor |
-|---|---|
-| HTTP | 200 |
-| tempo de parede | 173,35 s |
-| duração do áudio | 1,09 s |
-| `X-Gen-Time` | 172,74 s |
-| **RTF** | **158,5** |
+| Coleta | `X-Gen-Time` | áudio | RTF |
+|---|---|---|---|
+| 20261023-144336 | 40,32 s | 1,01 s | 39,9 |
+| 20261023-145020 | **172,74 s** | 1,09 s | **158,5** |
+| 20261023-145757 | 39,45 s | 1,01 s | 39,1 |
 
 **Como ler isso:** RTF entre 40 e 158 significa **40 a 158 s de processamento
 por segundo de áudio**. Uma frase de 10 s levaria de 6,6 a 26 min.
 
-**Ressalva obrigatória:** as duas são a **primeira** geração de um processo
+**Ressalva obrigatória:** as três são a **primeira** geração de um processo
 recém-aberto e incluem a carga dos pesos (2,4 GB). O protocolo manda separar a
-primeira execução por isso. **A dispersão de 4× entre duas execuções "iguais"
-mostra que esse número não mede o motor — mede o carregamento.** O candidato mais
-provável é cache de página: na coleta 144336 os pesos tinham acabado de ser
-gravados no disco (quente no cache do SO); na 145020 o app foi reaberto e o
-cache já não estava lá.
+primeira execução por isso.
 
-Por isso: **cada execução do `.bat` com o app fechado custa um carregamento
-frio**. A medição válida sai das execuções 2+ dentro da mesma sessão — modo
-`/voice` (10 frases) ou `/full` (4× C7).
+**A dispersão não é ruído de medição — é a carga.** Duas das três rodadas caem em
+~39–40 s; uma deu 173 s. O que mudou nela não foi o motor, foi o ambiente:
+leitura de 2,4 GB do disco, possível varredura do antivírus sobre arquivos
+recém-gravados, ou contenção com outro processo. **A causa exata desse outlier
+não está determinada** — com três amostras não dá para separar as hipóteses, e eu
+não vou escolher a mais conveniente.
+
+O que isso obriga: **cada execução do `.bat` com o app fechado paga um
+carregamento frio**, e esse custo domina o número. Por isso o modo padrão passou
+a gerar a frase **duas vezes** (a primeira é aquecimento, descartada), e a
+medição válida é a execução 2+ dentro da mesma sessão — `/voice` (10 frases) ou
+`/full` (4× C7).
 
 O app confirma o que a análise estática previa: `gpu_routing` = `omnivoice — cpu
 (no accelerator on this host)`. Não há GPU no caminho.
