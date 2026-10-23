@@ -208,8 +208,7 @@ Parâmetros exatos a registrar por arquivo: `engine`, `model`, `language=pt`,
 
 ## 5. Fase D — AMD, CPU e Vulkan
 
-**Status: hardware instalado e primeira geração medida (fria). Demais medições
-pendentes.**
+**Status: MEDIDO — 10 frases do corpus na máquina real.** RTF ≈ 25,6 em regime.
 
 A máquina-alvo foi identificada pela coleta de 2026-10-23
 (`evidence/windows/20261023-140732/`):
@@ -251,6 +250,55 @@ Repetida duas vezes mais, mesma frase, app reaberto a cada vez:
 **Como ler isso:** RTF entre 40 e 158 significa **40 a 158 s de processamento
 por segundo de áudio**. Uma frase de 10 s levaria de 6,6 a 26 min.
 
+### 5.0.1 Regime medido: 10 frases, uma sessão
+
+`evidence/windows/20261023-150843/` — modo `/voice`, app aberto uma vez, as 10
+frases do corpus em sequência, motor `omnivoice`, `language=pt`, seed 42:
+
+| # | Corpus | áudio (s) | geração (s) | RTF |
+|---|---|---|---|---|
+| 1 | C1 | 6,01 | 160,70 | 26,7 |
+| 2 | C2 | 6,92 | 174,35 | 25,2 |
+| 3 | C3 | 11,76 | 302,07 | 25,7 |
+| 4 | C4 | 8,68 | 229,05 | 26,4 |
+| 5 | C5 | 9,48 | 237,20 | 25,0 |
+| 6 | C6 | 1,01 | 39,51 | 39,1 |
+| 7 | C7 | 22,43 | 583,62 | 26,0 |
+| 8 | C8 | 6,68 | 169,40 | 25,4 |
+| 9 | C9 | 7,04 | 179,85 | 25,5 |
+| 10 | C10 | 8,04 | 207,07 | 25,8 |
+
+**Total: 38 min de processamento para 88 s de áudio. RTF agregado 25,9.**
+
+O comportamento é linear e previsível:
+
+```
+gen_s ≈ 2,6 + 25,63 × audio_s        (R² > 0,99 nas 9 frases > 1 s)
+```
+
+O erro do ajuste fica entre 0,6 % e 3,5 % nas frases longas. **Só a C6 escapa**
+(28 s previstos, 39 s reais): com 1 s de áudio, sobra uma parcela fixa por
+requisição — inicialização do motor, pré-processamento, escrita do WAV — que o
+modelo linear não captura. Ou seja: **frases curtas têm RTF pior, não melhor**.
+
+**Dispersão entre execuções: desprezível.** O modo padrão rodou a mesma C6 duas
+vezes seguidas (`20261023-150602`): 40,31 s e 39,96 s — 0,9 % de diferença. O
+outlier de 173 s da coleta `145020` **não se repetiu em 8 execuções** e deve ser
+tratado como incidente isolado daquela sessão, não como variância do motor.
+
+**Consequência para a Lia:** RTF 25,9 significa que o VoiceStudio leva **26
+segundos de CPU para produzir 1 segundo de fala**.
+
+| Fala da Lia | Tempo de geração |
+|---|---|
+| 3 s (uma frase curta) | ~1,3 min |
+| 10 s (um parágrafo) | ~4,3 min |
+| 30 s (uma explicação) | ~13 min |
+
+Isso **elimina uso conversacional** nesta máquina. Serve para geração
+assíncrona: pré-renderizar saudações, mensagens fixas, audiolivro, narração em
+lote.
+
 **Ressalva obrigatória:** as três são a **primeira** geração de um processo
 recém-aberto e incluem a carga dos pesos (2,4 GB). O protocolo manda separar a
 primeira execução por isso.
@@ -271,8 +319,14 @@ medição válida é a execução 2+ dentro da mesma sessão — `/voice` (10 fr
 O app confirma o que a análise estática previa: `gpu_routing` = `omnivoice — cpu
 (no accelerator on this host)`. Não há GPU no caminho.
 
-O que falta: rodar `run-lab.bat /voice` (ou `/full`) com o app já aberto e o
-modelo em cache, e comparar a execução 1 com as seguintes.
+O que ainda falta da Fase D:
+
+- **Vulkan/GGUF** — o modo `/gguf` ainda não foi executado (as coletas 150602 e
+  150843 não o incluem). Ver §5.2.
+- **CPU/RAM durante a geração** — o script mede tempo, não amostra consumo.
+- **RTF com voz clonada** vs. voz padrão.
+- **TTFA** (tempo até o primeiro áudio) só existe no caminho de streaming, que o
+  coletor não exercita.
 
 ### 5.1 O que foi estabelecido por inspeção (com evidência)
 

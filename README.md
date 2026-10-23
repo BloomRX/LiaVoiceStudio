@@ -74,8 +74,8 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 |---|---|
 | A — investigação estática | ✅ executada |
 | B — instalação | ✅ app + modelo + 1 WAV gerado (falta fechar/reabrir) |
-| C — qualidade de voz | ❌ não testada (depende de ouvinte humano) |
-| D — AMD / Vulkan | 🟡 `CPU-only` + 1ª medição (RTF 39,9, fria); regime pendente |
+| C — qualidade de voz | 🟡 10 amostras geradas; falta ouvinte humano |
+| D — AMD / Vulkan | ✅ medido: **RTF 25,9** em regime (10 frases, CPU) |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |

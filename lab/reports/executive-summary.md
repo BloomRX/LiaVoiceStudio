@@ -21,8 +21,8 @@ Consequência direta:
 |---|---|
 | A — investigação estática | ✅ **Executada** — leitura de README, 100+ documentos e do código da versão fixada |
 | B — instalação | ✅ **Testada na máquina real** — o `run-lab.bat` instalou (SHA-256 conferido, `/S`), baixou o modelo e gerou WAV. Falta o ciclo fechar/reabrir |
-| C — qualidade de voz | ❌ **Não testada** — sem áudio, sem GPU, e avaliar naturalidade exige ouvinte humano |
-| D — AMD / Vulkan | 🟡 **`CPU-only` confirmado + 1ª medição (RTF 39,9, fria)** — regime permanente pendente |
+| C — qualidade de voz | 🟡 **Áudio gerado (10 frases)**, aguardando avaliação humana — é o único juiz possível |
+| D — AMD / Vulkan | ✅ **Medido: RTF 25,9 em regime** (10 frases, CPU). Vulkan/GGUF não testado |
 | E — API local | ✅ **TESTADA em runtime** — backend real exercitado por HTTP (ver §2.6) |
 | F — licenças | ✅ **Executada** com fontes primárias, confirmada em runtime |
 | G — integração | ✅ **Análise arquitetural**, sem implementação |
@@ -151,19 +151,48 @@ Repetida duas vezes mais, mesma frase, mesma máquina, mesmo app reaberto:
 | 14:50 | **172,74 s** | **158,5** |
 | 14:57 | 39,45 s | 39,1 |
 
-**Nenhuma das três é o RTF do sistema.** São as primeiras gerações de processos
-recém-abertos, e portanto incluem o carregamento de 2,4 GB de pesos.
+**Nenhuma das três é o RTF do sistema** — são primeiras gerações, com o
+carregamento de 2,4 GB de pesos embutido.
 
-O 173 s é um **outlier de causa não determinada**: leitura fria do disco,
-varredura de antivírus sobre arquivos recém-gravados ou contenção com outro
-processo — com três amostras não dá para separar. O que se pode afirmar é que o
-carregamento domina a primeira execução e que ele varia muito mais do que o
-motor.
+O regime veio em seguida, com o corpus inteiro (`/voice`, 10 frases, uma sessão).
 
-O regime permanente sai das execuções 2+ dentro da mesma sessão (`/voice`), e é
-esse número que decide se o VoiceStudio serve para conversa ou só para geração
-assíncrona. **Até lá, a única afirmação honesta é: em CPU nesta máquina, a
-primeira frase de uma sessão fria demora entre 40 e 173 segundos.**
+### 2.4.1 O número que decide: RTF 25,9
+
+| # | Corpus | áudio (s) | geração (s) | RTF |
+|---|---|---|---|---|
+| 1 | C1 | 6,01 | 160,70 | 26,7 |
+| 2 | C2 | 6,92 | 174,35 | 25,2 |
+| 3 | C3 | 11,76 | 302,07 | 25,7 |
+| 4 | C4 | 8,68 | 229,05 | 26,4 |
+| 5 | C5 | 9,48 | 237,20 | 25,0 |
+| 6 | C6 | 1,01 | 39,51 | 39,1 |
+| 7 | C7 | 22,43 | 583,62 | 26,0 |
+| 8 | C8 | 6,68 | 169,40 | 25,4 |
+| 9 | C9 | 7,04 | 179,85 | 25,5 |
+| 10 | C10 | 8,04 | 207,07 | 25,8 |
+
+**38 minutos de CPU para 88 segundos de áudio.** A relação é linear:
+
+```
+gen_s ≈ 2,6 + 25,63 × audio_s      (erro 0,6–3,5 % nas frases > 1 s)
+```
+
+A medição é **reprodutível**: a mesma C6 gerada duas vezes seguidas deu 40,31 s
+e 39,96 s (0,9 % de diferença), e o outlier de 173 s não reapareceu em 8
+execuções. Ele foi um incidente daquela sessão, não variância do motor.
+
+**O que isso significa na prática:** o VoiceStudio leva ~26 s de processamento
+para cada segundo de fala nesta máquina.
+
+| Fala da Lia | Tempo de geração |
+|---|---|
+| 3 s (frase curta) | ~1,3 min |
+| 10 s (parágrafo) | ~4,3 min |
+| 30 s (explicação) | ~13 min |
+
+**Uso conversacional está descartado** — não por impressão, por medição. O que
+sobra, e é real: geração assíncrona (audiolivro, narração em lote, mensagens
+pré-renderizadas).
 
 O que já se pode afirmar com segurança: **não há GPU no caminho**
 (`omnivoice — cpu (no accelerator on this host)`, dito pelo próprio app), então o
@@ -256,15 +285,21 @@ possível sem instalar nada.
 
 ### 4.1 Motor padrão (OmniVoice) — com clonagem e design em pt-BR
 
-> ### 🟡 **PRECISA DE MAIS EVIDÊNCIAS**
+> ### 🟡 **PRECISA DE MAIS EVIDÊNCIAS** — com uma ressalva de desempenho já medida
 
-**Por quê não "recomendado":** é a única configuração com português + clonagem +
-design, e a API é excelente. Mas **não há uma única medição de qualidade ou
-latência em pt-BR** — nem neste laboratório, nem no projeto (a tabela de
-benchmarks oficial está literalmente vazia: *"No verified rows yet"*).
+**O que já está medido:** funciona em pt-BR, gera áudio correto (24 kHz mono,
+HTTP 200 em 10/10 frases) e a API é estável. **RTF 25,9** — 26 s de CPU por
+segundo de fala.
 
-**O que falta:** executar a Fase C na máquina real, com o corpus fixo, e um
-humano ouvir. Sem isso, recomendar seria adivinhação.
+**O que isso elimina:** conversa em tempo real nesta máquina. Não há ajuste de
+configuração que compense 26×.
+
+**O que continua em aberto:** a **qualidade** do áudio em pt-BR. Nenhum humano
+ouviu as 10 amostras ainda, e não existe benchmark publicado pelo projeto
+(*"No verified rows yet"*). Latência não diz nada sobre naturalidade.
+
+**O que falta:** ouvir `evidence/windows/20261023-150843/audio/C1..C10` e
+preencher a grade de `test-matrix.md` §4.2.
 
 **Risco a registrar:** licença CC-BY-NC + `commercial_outputs: unknown`.
 
@@ -342,10 +377,15 @@ O caminho de menor risco, na ordem:
    nova rodada de teste de qualidade.
 4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende.
 
-**Expectativa calibrada sobre desempenho:** no hardware-alvo, a inferência será
-em **CPU**. Isso é mais lento que GPU, e a missão deve ser planejada sabendo
-disso. O VoiceStudio mitiga parcialmente com chunking, streaming e orçamentos de
-tempo — mas não elimina o custo.
+**Desempenho — agora medido, não estimado:** no hardware-alvo a inferência é em
+**CPU**, com **RTF 25,9** (26 s de processamento por segundo de fala). Para a
+Lia, isso significa que **voz em tempo real está fora** e que o uso realista é
+geração assíncrona. Chunking e streaming do VoiceStudio reduzem o tempo até o
+*primeiro* trecho, não o custo total.
+
+Se voz em tempo real for requisito, a conclusão do laboratório é que **este
+caminho não atende neste hardware** — e nenhum ajuste de configuração muda um
+fator de 26×.
 
 ---
 
