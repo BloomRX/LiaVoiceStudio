@@ -1,0 +1,7 @@
+﻿{
+    "path":  "/generate/budget",
+    "http":  404,
+    "error":  "O servidor remoto retornou um erro: (404) Não Localizado.",
+    "at":  "2026-10-23T16:00:07.1968823-03:00",
+    "note":  "endpoint nao existe nesta versao - nao e falha"
+}
