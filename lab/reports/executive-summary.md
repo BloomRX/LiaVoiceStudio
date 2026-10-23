@@ -151,7 +151,8 @@ séria:
   `rtf` no frame final. Isso é raro e resolve o problema de medir latência real
   de conversação.
 - **Orçamentos de tempo por classe de hardware**, expostos em
-  `/generate/budget` (300 s acelerado, 600 s CPU) em vez de constantes mágicas.
+  `/generate/budget` (base de 300 s acelerado / 600 s CPU, com extensão por
+  progresso) em vez de constantes mágicas.
 - **Consentimento de voz como cidadão de primeira classe**: endpoints de
   `consent`, `attestation` e `lock` por perfil de voz.
 - **Transparência incomum sobre o próprio estado**: `gpu-report` por motor com
@@ -244,8 +245,10 @@ substituir seria trocar um motor conhecido por um desconhecido, com licença pio
 O caminho de menor risco, na ordem:
 
 1. **Validar a qualidade em pt-BR antes de qualquer código.** É o único dado que
-   falta e o único que não pode ser obtido por inspeção. Use
-   `corpus/` + a grade de avaliação em `test-matrix.md` §4.2.
+   falta e o único que não pode ser obtido por inspeção. Para isso existe
+   **`run-lab.bat`** na raiz: ele coleta hardware, API e áudio do corpus, escreve
+   o resumo e envia ao git. Depois ouça as amostras e preencha a grade de
+   `test-matrix.md` §4.2.
 2. **Se a qualidade for boa e o uso for pessoal/local:** implementar o adaptador
    descrito em `integration-proposal.md`, com Kokoro como padrão e VoiceStudio
    opt-in. Reversível em um passo.
@@ -289,8 +292,13 @@ Declaradas para que ninguém as descubra depois:
 | `test-matrix.md` | 16 configurações, corpus, procedimentos, status por fase |
 | `licensing.md` | app, pesos, tokenizadores, dependências, dúvidas jurídicas |
 | `integration-proposal.md` | arquitetura futura, sem implementação |
+| `installation-plan.md` | plano de instalação com custos, riscos e rollback |
 | `corpus/` | corpus fixo pt-BR (10 frases) + SHA-256 de cada texto |
-| `evidence/` | logs e extrações brutas usadas como prova |
+| `evidence/a1..a6` | inspeção estática (extrações reprodutíveis) |
+| `evidence/runtime/` | Fase E executada contra backend real |
+| `evidence/windows/` | onde `run-lab.bat` grava a coleta da máquina real |
+| `../tools/collect-windows.ps1` | coletor da máquina Windows (lógica auditável) |
+| `../../run-lab.bat` | entrada única na raiz do repositório |
 
 ---
 
@@ -300,7 +308,8 @@ O laboratório não produziu nenhuma medição de voz porque não podia ouvir. O
 produziu foi o mapa exato do que precisa ser medido, com o corpus pronto, os
 endpoints certos, os campos de métrica que o próprio app já devolve, e a lista de
 armadilhas que fariam o teste dar resultado falso — primeira execução mais lenta
-que as demais, queda silenciosa para CPU, `device=cpu` mascarado na UI,
-orçamento de 600 s em CPU vs. 300 s em GPU.
+que as demais, queda silenciosa para CPU, `device=cpu` mascarado na UI, e um
+orçamento de tempo que **não** é o "600 s" que a leitura estática sugere
+(`executionBase` 600 + `progressExtensionCap` 1800 + `cpuAutoCeiling` 7200).
 
 Isso é menos do que a missão pedia. É mais do que uma opinião.

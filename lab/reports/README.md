@@ -66,8 +66,13 @@ Resultados em [`evidence/runtime/`](evidence/runtime/README.md).
 
 ## O que fazer a seguir
 
-Executar as Fases B–D na máquina real (ver `installation-plan.md`, Opção A) e
-ouvir o corpus de `corpus/` preenchendo a grade de avaliação de
+Executar as Fases B–D na máquina real e ouvir o corpus.
+
+Na raiz do repositório existe **`run-lab.bat`**: ele coleta hardware, API e áudio
+do corpus, escreve o resumo e envia ao git. Instruções em
+[`../tools/README.md`](../tools/README.md).
+
+Depois de ouvir as amostras, preencha a grade de avaliação de
 `test-matrix.md` §4.2.
 
 Só depois disso faz sentido escrever qualquer código de integração.

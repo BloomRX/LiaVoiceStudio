@@ -73,6 +73,12 @@ Status: **INSPECIONADO / TESTADO (estático)**. Nenhuma linha foi executada.
 Evidência da extração: `evidence/a3-engines-languages.txt`,
 `evidence/a5-licensing.txt`.
 
+**Cruzamento com o runtime (Fase E):** `GET /engines/tts` foi executado de fato e
+listou **17 motores**, confirmando a coluna "disponível" para a instalação crua
+(só `omnivoice` e `omnivoice-subprocess`) e devolvendo `effective_device = cpu`
+para todos. O payload **não** expõe idiomas — a coluna "pt-BR?" desta tabela vem
+de código e documentação, não da API. Ver `evidence/runtime/e2-engines.txt`.
+
 ### 2.1 Conclusão da matriz
 
 **No alvo Windows + AMD + português brasileiro, a matriz deixa uma única

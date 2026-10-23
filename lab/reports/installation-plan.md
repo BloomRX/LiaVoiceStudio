@@ -98,63 +98,74 @@ app, mantendo seus dados" de "remover tudo" — vale ler antes.
 
 ---
 
-## Opção B — Validação da API no laboratório (Linux, CPU, motor pequeno)
+## Opção B — Validação da API no laboratório — ✅ JÁ EXECUTADA
 
-**Não substitui a Opção A.** Não responde nada sobre AMD, Vulkan ou Windows.
-Serve para uma coisa só: **provar que a API se comporta como o código diz** —
-descoberta, health, geração, formatos, erros, e o contrato que a Lia usaria.
+**Status: concluída.** Não substitui a Opção A e não responde nada sobre AMD,
+Vulkan, Windows ou qualidade de voz. Provou o **contrato da API**, que era o
+objetivo.
 
-### B.1 Ação proposta
+### B.1 O que foi realmente feito
 
-Instalar no sandbox Linux **apenas o backend Python + o motor `supertonic3`**
-(ONNX, CPU-only, ~400 MB, 31 idiomas incluindo português, 7 vozes preset), e
-exercitar os endpoints por HTTP.
+O plano original era instalar só o motor `supertonic3` (~1,7 GB). Na prática
+isso não foi possível, por dois motivos que só apareceram na execução:
 
-### B.2 Por que `supertonic3` e não o motor padrão
+1. O backend importa `torch` no módulo raiz (`services/tts_backend.py`), então
+   **não existe instalação "leve"** — o ambiente completo é obrigatório.
+2. `supertonic3` exige `pip install` do pacote + pesos do Hugging Face, e
+   **`huggingface.co` não é alcançável deste sandbox**.
 
-| Critério | OmniVoice (padrão) | Supertonic-3 |
+Então instalou-se o backend completo e exercitou-se a API com o motor padrão
+(OmniVoice), **sem** conseguir gerar áudio.
+
+### B.2 Números reais (medidos, substituem a estimativa)
+
+| Item | Estimado antes | Real |
 |---|---|---|
-| Pesos | 2.4 GiB | ~400 MB |
-| RAM necessária | > 3.8 GiB disponíveis (risco de OOM) | cabe |
-| pt-BR | sim | sim (31 idiomas) |
-| Clonagem | sim | não (7 vozes preset) |
+| Ambiente Python (venv) | ~4 GB | **6,7 GB** |
+| Download total | ~1,7 GB | ~2,5 GB |
+| Tempo até a API responder | — | **5,6 s** (`/startup/progress` detalha as etapas) |
+| Áudio gerado | esperado | **nenhum** — pesos vêm do HF, inacessível |
 
-Com 3.8 GiB sem swap, o OmniVoice provavelmente falha por memória. O
-Supertonic-3 valida o mesmo **contrato de API** com uma fração do risco.
+Duas dependências declaradas não puderam ser instaladas (bloqueio de rede a
+`objects.githubusercontent.com`): `kittentts` e `en-core-web-sm`. O backend
+subiu mesmo assim — elas só afetam os motores que as usam.
 
-### B.3 Tamanho aproximado
+### B.3 O que ficou provado
 
-| Item | Download | Em disco |
-|---|---|---|
-| Backend Python + deps (torch CPU etc.) | ~1.2 GB | ~4 GB |
-| Motor supertonic3 + pesos | ~450 MB | ~500 MB |
-| **Total** | **~1.7 GB** | **~5 GB** (de 20 GB livres) |
+- `/health`, `/startup/progress`, `/system/info`, `/generate/budget` respondem
+  como documentado.
+- `GET /engines/tts` lista **17 motores**, com `available`, `effective_device`,
+  `supports_cloning`, `supports_voice_design`, `gpu_compat` e `reason`.
+- O gate de licença devolve **403** com `fingerprint`; o OmniVoice exige **duas**
+  aceitações (modelo CC-BY-NC + tokenizador Higgs `NOASSERTION`).
+- Aceite headless via `POST /models/licenses/accept` funciona (200).
+- Isolamento: processo preso a `127.0.0.1:3900`.
+- Erros no formato OpenAI em `/v1/audio/speech`.
 
-### B.4 Riscos
+### B.4 O que NÃO ficou provado
 
-| Risco | Gravidade | Mitigação |
-|---|---|---|
-| OOM durante a inferência (3.8 GiB, sem swap) | Médio | Usar apenas frases curtas (`C6`, `C1`); abortar se necessário |
-| Download puxar `torch` CUDA por engano (~2.5 GB extra) | Baixo | Forçar variante CPU |
-| Nenhum risco de rede: bind em `127.0.0.1` | — | Confirmar com `ss -lntp` |
-| **O resultado não se aplica ao hardware-alvo** | **Alto (de interpretação)** | Marcado como tal em todos os relatórios |
+- **Nenhum áudio.** Falha de rede ao carregar pesos devolve
+  `500 {"error_class":"HF_AUTH_FAILED"}`, não um 4xx limpo.
+- Nada sobre AMD, Vulkan, Windows, naturalidade em pt-BR ou latência na sua
+  máquina.
+
+Evidência completa: `evidence/runtime/`.
 
 ### B.5 Como desfazer
 
 ```bash
-rm -rf lab/VoiceStudio/.venv lab/venv ~/.cache/huggingface ~/.cache/uv
+rm -rf lab/venv lab/data
 # nada foi instalado fora do diretório do laboratório; nenhum pacote de sistema
 ```
 
-### B.6 O que isso provaria — e o que não provaria
+### B.6 O que isso muda no plano
 
-**Provaria:** a API responde como documentado; `/health` transita 503→200;
-`/engines/tts` lista motores com `available`/`device`; `/v1/audio/speech`
-devolve áudio no formato pedido; erros retornam os códigos previstos; o serviço
-fica restrito ao loopback.
+**Nada na Opção A.** A pergunta central — qualidade em pt-BR e comportamento no
+hardware AMD — continua dependendo de você rodar `run-lab.bat` na máquina real.
 
-**Não provaria:** nada sobre AMD, Vulkan, Windows, naturalidade em pt-BR, ou
-latência na sua máquina.
+Em compensação, a Opção B já entregou o contrato exato que a Lia vai consumir, e
+corrigiu duas suposições minhas (timeout e descoberta de idioma). Ver
+`evidence/runtime/README.md`.
 
 ---
 
@@ -171,9 +182,8 @@ depende de instalação.
 **Opção A**, executada por você na máquina real — é a única que responde à
 pergunta central.
 
-**Opção B** é útil se você quiser, antes disso, confirmar que a API funciona
-como os relatórios descrevem, sem gastar 10 GB na sua máquina. Mas ela responde
-uma pergunta secundária.
+**Opção B já foi executada** (ver acima): a API funciona como os relatórios
+descrevem. Ela respondeu uma pergunta secundária e não precisa ser repetida.
 
 **Nunca A + B ao mesmo tempo** sem motivo: são ambientes diferentes e os
 resultados não se somam.
