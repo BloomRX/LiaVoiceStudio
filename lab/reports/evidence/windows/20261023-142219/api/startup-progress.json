@@ -1,0 +1,46 @@
+﻿{
+    "status":  "ready",
+    "step":  null,
+    "label":  null,
+    "steps":  [
+                  {
+                      "id":  "env_prefs",
+                      "label":  "Restoring settingsâ¦",
+                      "state":  "done",
+                      "t":  0.77
+                  },
+                  {
+                      "id":  "native_preload",
+                      "label":  "Preparing GPU librariesâ¦",
+                      "state":  "done",
+                      "t":  0.01
+                  },
+                  {
+                      "id":  "ml_imports",
+                      "label":  "Loading ML runtime (PyTorch)â¦",
+                      "state":  "done",
+                      "t":  4.06
+                  },
+                  {
+                      "id":  "api_routes",
+                      "label":  "Loading API routesâ¦",
+                      "state":  "done",
+                      "t":  6.16
+                  },
+                  {
+                      "id":  "db_migrate",
+                      "label":  "Preparing databaseâ¦",
+                      "state":  "done",
+                      "t":  3.36
+                  },
+                  {
+                      "id":  "services_start",
+                      "label":  "Starting background servicesâ¦",
+                      "state":  "done",
+                      "t":  14.84
+                  }
+              ],
+    "elapsed_s":  31.77,
+    "error":  null,
+    "app_version":  "0.5.6"
+}
