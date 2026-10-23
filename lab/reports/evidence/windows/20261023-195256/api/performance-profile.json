@@ -1,0 +1,89 @@
+﻿{
+    "global":  "balanced",
+    "overrides":  {
+
+                  },
+    "effective":  {
+                      "tts":  "balanced",
+                      "asr":  "balanced",
+                      "dictation":  "balanced",
+                      "diarisation":  "balanced",
+                      "translation":  "balanced",
+                      "llm":  "balanced"
+                  },
+    "tiers":  [
+                  "fast",
+                  "balanced",
+                  "quality",
+                  "max"
+              ],
+    "families":  [
+                     "tts",
+                     "asr",
+                     "dictation",
+                     "diarisation",
+                     "translation",
+                     "llm"
+                 ],
+    "implemented_families":  [
+                                 "tts",
+                                 "asr",
+                                 "dictation",
+                                 "diarisation",
+                                 "translation"
+                             ],
+    "applicable_families":  [
+                                "tts"
+                            ],
+    "targets":  {
+                    "tts":  {
+                                "steps":  16,
+                                "postprocess":  true
+                            },
+                    "asr":  {
+                                "beam_size":  3,
+                                "best_of":  3,
+                                "engine":  "faster-whisper"
+                            },
+                    "dictation":  {
+                                      "decoding_method":  "greedy_search",
+                                      "max_active_paths":  4,
+                                      "engine":  "sherpa-onnx"
+                                  },
+                    "diarisation":  {
+                                        "engine":  "audiocpp-sortformer"
+                                    },
+                    "translation":  {
+                                        "num_beams":  3,
+                                        "engine":  "argos"
+                                    }
+                },
+    "selections":  {
+                       "tts":  {
+                                   "engine":  "omnivoice",
+                                   "model":  "k2-fsa/OmniVoice"
+                               },
+                       "asr":  {
+                                   "engine":  "whisperx",
+                                   "model":  "whisperx"
+                               },
+                       "dictation":  {
+                                         "engine":  "inactive",
+                                         "model":  null,
+                                         "label":  null
+                                     },
+                       "diarisation":  {
+                                           "engine":  "pyannote",
+                                           "model":  "pyannote/speaker-diarization-3.1"
+                                       },
+                       "translation":  {
+                                           "engine":  "argos",
+                                           "model":  "argos"
+                                       },
+                       "llm":  {
+                                   "engine":  "inactive",
+                                   "model":  null
+                               }
+                   },
+    "downloads_started":  false
+}

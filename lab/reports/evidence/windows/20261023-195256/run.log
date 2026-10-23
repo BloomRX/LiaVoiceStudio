@@ -1,0 +1,149 @@
+﻿**********************
+Início da transcrição do Windows PowerShell
+Hora de início: 20261023195256
+Nome de Usuário: LUCASPC\lucas
+Executar como Usuário: LUCASPC\lucas
+Nome da Configuração: 
+Computador: LUCASPC (Microsoft Windows NT 10.0.26200.0)
+Aplicativo Host: powershell -NoProfile -ExecutionPolicy Bypass -File C:\Users\lucas\AppData\Local\Temp\voicestudio-lab.ps1 -Gpu
+ID do Processo: 17140
+PSVersion: 5.1.26100.9711
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.9711
+BuildVersion: 10.0.26100.9711
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+
+================================================================
+ VoiceStudio Lab - instala, testa e coleta (Windows + AMD)
+ Versao do coletor: 1.0.0
+ Inicio: 2026-10-23 19:52:56
+ Saida:  J:\LiaVoiceStudio\lab\reports\evidence\windows\20261023-195256
+================================================================
+ Modo: RAPIDO (ambiente + API + 2 frases)
+ Opcoes: gguf=False gpu=True voice=False full=False noinstall=False nomodel=False engine=''
+
+[1/10] Verificando pre-requisitos
+     PowerShell 5.1.26100.9711
+     OK    curl disponivel (curl.exe)
+     OK    git 2.52.0.windows.1
+     OK    repositorio git, branch 'arena/e6163ffc-liavoicestudio'
+
+[2/10] Coletando hardware e sistema
+     OK    Microsoft Windows 11 Home build 26200 (64 bits)
+     OK    CPU: AMD Ryzen 5 5500 (6C/12T, AMD)
+     OK    GPU: Parsec Virtual Display Adapter (driver 0.45.0.0)
+     OK    GPU: AMD Radeon RX 580 2048SP (driver 31.0.21925.1001)
+     C: 184.2 GB livres de 475.9 GB
+     D: 153 GB livres de 465.8 GB
+     F: 29 GB livres de 83.8 GB
+     G: 5.2 GB livres de 15 GB
+     J: 112.1 GB livres de 447.1 GB
+     OK    vulkaninfo encontrado; resumo salvo
+     OK    Unidade J: presente
+
+[3/10] Procurando a instalacao do VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio
+     OK    encontrado: C:\Users\lucas\AppData\Roaming\omnivoice
+     OK    encontrado: C:\Users\lucas\AppData\Local\omnivoice
+     nenhum processo VoiceStudio/python rodando
+     porta 3900 nao esta escutando (app fechado?)
+
+[4/10] Instalando o VoiceStudio
+     OK    VoiceStudio ja instalado: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     instalacao pulada
+
+[5/10] Iniciando o VoiceStudio
+     iniciando: C:\Users\lucas\AppData\Local\Programs\VoiceStudio\VoiceStudio.exe
+     modo /gpu: espera limitada a 420 s (a medicao da placa nao depende da API)
+     esperando /health responder (ate 420 s)...
+
+     ATENCAO - existe UM passo que so pode ser feito na janela do app:
+       1. na primeira execucao o VoiceStudio mostra "Instalar ambiente local"
+          (Python + dependencias, varios GB). Clique nesse botao.
+       2. quando a API subir, este script continua sozinho.
+       Nao feche esta janela do cmd.
+
+     backend subindo: api_routes Loading API routes…
+     OK    API respondeu: o app esta pronto
+
+[6/10] Sondando a API local
+     OK    /health -> status=ok device=cpu version=0.5.6
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+     OK    17 motores; 4 disponivel(is); ativo='omnivoice'
+       omnivoice -> device=cpu clone=True design=
+       kittentts -> device=cpu clone=False design=
+       omnivoice-subprocess -> device=cpu clone=True design=
+       audiocpp -> device=vulkan clone=True design=
+     motor inexistente -> HTTP 400 (esperado 400)
+     modelo inexistente -> HTTP 400 (esperado 400)
+
+[7/10] Garantindo o modelo TTS (k2-fsa/OmniVoice)
+     modelo  : k2-fsa/OmniVoice
+     tamanho : ~2.4 GB no primeiro download
+     origem  : Hugging Face, via o proprio app
+     download iniciado; acompanhando /models/install/status
+     OK    download do modelo concluido
+     OK    omnivoice disponivel (device=cpu)
+PS>TerminatingError(Invoke-RestMethod): "{"detail":"Not Found"}"
+     sem endpoint de aceite de licenca (nada a fazer)
+
+[7c] GPU real e Vulkan (audio.cpp)
+     AMD Radeon RX 580 2048SP: 8 GB de VRAM (registro)
+     Parsec Virtual Display Adapter: VRAM nao informada pelo driver
+     OK    VRAM real detectada: 8 GB
+     o valor de 4 GB que o WMI devolve e saturacao do campo AdapterRAM, nao a placa
+     runtime audio.cpp: suportado=True instalado=True plataforma=windows-x64
+     OK    runtime audio.cpp pronto (versao v0.7.4)
+     runtime encontrado no disco, sem passar pela API
+     binario: C:\Users\lucas\AppData\Roaming\OmniVoice\engines\audio-cpp\0.7.4\windows-x64\audiocpp_server.exe
+     executando --list-devices (o runtime enumera os backends)
+       ggml_vulkan: Found 1 Vulkan devices:
+       ggml_vulkan: 0 = AMD Radeon RX 580 2048SP (AMD proprietary driver) | uma: 0 | fp16: 0 | bf16: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none
+       available_devices=2
+       Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]
+       CPU:0 "AMD Ryzen 5 5500                               " [CPU]
+       select with: --backend <cuda|hip|vulkan|metal|cpu> --device <index>
+     OK    Vulkan enumerou 1 dispositivo(s) nesta maquina
+     baixando o bundle Breeze-TTS-2 + Sortformer (4,98 GB, en/zh)
+     OK    modelo instalado: 4.89 GB no disco
+     OK    engine audiocpp agora disponivel (device vulkan, routing accelerated)
+     gerando com engine=audiocpp (texto em ingles) e medindo o RTF
+     OK    Vulkan: gen=90.45s audio=8.32s RTF=10.871
+     veredito: HTTP 200 com RTF=10.871. ATENCAO: esta requisicao passa pela API do app e a resposta nao diz qual motor a atendeu - se o engine audiocpp estivesse indisponivel, o app teria caido no motor ativo. Numero NAO atribuivel sem o passo [7d].
+
+[7d] Vulkan vs CPU (medicao pareada)
+     GGUF encontrado: breeze-tts-2-q8_0.gguf (4,73 GB)
+     modelo: C:\Users\lucas\AppData\Local\omnivoice\hf_cache\models--audio-cpp--audio.cpp-gguf\snapshots\dc6fecccc2b0c6bdda0a8b2f38fa61394fee0b9c\Breeze-TTS-2-GGUF\breeze-tts-2-q8_0.gguf
+     [vulkan] audiocpp_server na porta 17871 (pid 20068)
+     [vulkan] r1: parede 77,76s / audio 8,16s / RTF 9,529
+     [vulkan] r2: parede 60,59s / audio 8,16s / RTF 7,425
+     [vulkan] r3: parede 63,16s / audio 8,16s / RTF 7,74
+     [vulkan] r4: parede 64,53s / audio 8,16s / RTF 7,908
+     OK    [vulkan] RTF mediano 7.74 (min 7.425, max 7.908)
+     [cpu] audiocpp_server na porta 17872 (pid 17576)
+     [cpu] r1: parede 79,3s / audio 9,92s / RTF 7,994
+     [cpu] r2: parede 63,32s / audio 9,92s / RTF 6,383
+     [cpu] r3: parede 62,82s / audio 9,92s / RTF 6,333
+     [cpu] r4: parede 62,36s / audio 9,92s / RTF 6,286
+     OK    [cpu] RTF mediano 6.333 (min 6.286, max 6.383)
+     OK    Mesmo binario e modelo: Vulkan RTF 7.74, CPU RTF 6.333. A placa e 0.82x mais rapida em ingles.
+
+[8/10] Geracao de voz (corpus pt-BR)
+     2 geracao(oes) planejada(s)
+     motor: o que estiver ativo no app
+     [1/2] C6-r1 ...
+OK  36.421904s  audio=1.01s  gen=29.36s  rtf=29.069
+     [2/2] C6-r2 ...
+OK  30.827488s  audio=1.01s  gen=30.77s  rtf=30.465
+     OK    medicoes salvas em measurements.csv
+
+[9/10] Escrevendo o resumo
+     OK    summary.md escrito
+**********************
+Fim da transcrição do Windows PowerShell
+Hora de término: 20261023200620
+**********************

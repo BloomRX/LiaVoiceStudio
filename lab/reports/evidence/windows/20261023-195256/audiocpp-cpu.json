@@ -1,0 +1,18 @@
+{
+    "host":  "127.0.0.1",
+    "port":  17872,
+    "backend":  "cpu",
+    "device":  0,
+    "threads":  8,
+    "lazy_load":  true,
+    "max_loaded_models":  1,
+    "models":  [
+                   {
+                       "id":  "breeze-tts-2",
+                       "family":  "breeze_tts",
+                       "path":  "C:\\Users\\lucas\\AppData\\Local\\omnivoice\\hf_cache\\models--audio-cpp--audio.cpp-gguf\\snapshots\\dc6fecccc2b0c6bdda0a8b2f38fa61394fee0b9c\\Breeze-TTS-2-GGUF\\breeze-tts-2-q8_0.gguf",
+                       "task":  "tts",
+                       "mode":  "offline"
+                   }
+               ]
+}

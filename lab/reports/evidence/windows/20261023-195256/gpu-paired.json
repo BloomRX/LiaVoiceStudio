@@ -1,0 +1,99 @@
+﻿{
+    "model_path":  "C:\\Users\\lucas\\AppData\\Local\\omnivoice\\hf_cache\\models--audio-cpp--audio.cpp-gguf\\snapshots\\dc6fecccc2b0c6bdda0a8b2f38fa61394fee0b9c\\Breeze-TTS-2-GGUF\\breeze-tts-2-q8_0.gguf",
+    "text_sha256":  "933cbd2ccd9c28a0ad9df85e21946fad03c9c232ad24168e0f6b19655b922702",
+    "seed":  42,
+    "runs_measured":  3,
+    "warmup_runs":  1,
+    "backends":  {
+                     "vulkan":  {
+                                    "backend":  "vulkan",
+                                    "port":  17871,
+                                    "started":  true,
+                                    "pid":  20068,
+                                    "requests":  [
+                                                     {
+                                                         "run":  1,
+                                                         "warmup":  true,
+                                                         "wall_s":  77.76,
+                                                         "audio_s":  8.16,
+                                                         "sample_rate":  24000,
+                                                         "rtf":  9.529
+                                                     },
+                                                     {
+                                                         "run":  2,
+                                                         "warmup":  false,
+                                                         "wall_s":  60.59,
+                                                         "audio_s":  8.16,
+                                                         "sample_rate":  24000,
+                                                         "rtf":  7.425
+                                                     },
+                                                     {
+                                                         "run":  3,
+                                                         "warmup":  false,
+                                                         "wall_s":  63.16,
+                                                         "audio_s":  8.16,
+                                                         "sample_rate":  24000,
+                                                         "rtf":  7.74
+                                                     },
+                                                     {
+                                                         "run":  4,
+                                                         "warmup":  false,
+                                                         "wall_s":  64.53,
+                                                         "audio_s":  8.16,
+                                                         "sample_rate":  24000,
+                                                         "rtf":  7.908
+                                                     }
+                                                 ],
+                                    "rtf_median":  7.74,
+                                    "rtf_min":  7.425,
+                                    "rtf_max":  7.908,
+                                    "error":  null
+                                },
+                     "cpu":  {
+                                 "backend":  "cpu",
+                                 "port":  17872,
+                                 "started":  true,
+                                 "pid":  17576,
+                                 "requests":  [
+                                                  {
+                                                      "run":  1,
+                                                      "warmup":  true,
+                                                      "wall_s":  79.3,
+                                                      "audio_s":  9.92,
+                                                      "sample_rate":  24000,
+                                                      "rtf":  7.994
+                                                  },
+                                                  {
+                                                      "run":  2,
+                                                      "warmup":  false,
+                                                      "wall_s":  63.32,
+                                                      "audio_s":  9.92,
+                                                      "sample_rate":  24000,
+                                                      "rtf":  6.383
+                                                  },
+                                                  {
+                                                      "run":  3,
+                                                      "warmup":  false,
+                                                      "wall_s":  62.82,
+                                                      "audio_s":  9.92,
+                                                      "sample_rate":  24000,
+                                                      "rtf":  6.333
+                                                  },
+                                                  {
+                                                      "run":  4,
+                                                      "warmup":  false,
+                                                      "wall_s":  62.36,
+                                                      "audio_s":  9.92,
+                                                      "sample_rate":  24000,
+                                                      "rtf":  6.286
+                                                  }
+                                              ],
+                                 "rtf_median":  6.333,
+                                 "rtf_min":  6.286,
+                                 "rtf_max":  6.383,
+                                 "error":  null
+                             }
+                 },
+    "speedup_cpu_over_vulkan":  0.82,
+    "verdict":  "Mesmo binario e modelo: Vulkan RTF 7.74, CPU RTF 6.333. A placa e 0.82x mais rapida em ingles."
+}

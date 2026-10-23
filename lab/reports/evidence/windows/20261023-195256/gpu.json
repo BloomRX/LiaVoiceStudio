@@ -1,0 +1,40 @@
+﻿{
+    "vram_reportada_gb":  null,
+    "adapters":  [
+                     {
+                         "name":  "AMD Radeon RX 580 2048SP",
+                         "vram_gb":  8,
+                         "vram_bytes":  8589934592
+                     },
+                     {
+                         "name":  "Parsec Virtual Display Adapter",
+                         "vram_gb":  null,
+                         "vram_bytes":  null
+                     }
+                 ],
+    "runtime_supported":  true,
+    "runtime_installed":  true,
+    "runtime_version":  "v0.7.4",
+    "server_exe":  "C:\\Users\\lucas\\AppData\\Roaming\\OmniVoice\\engines\\audio-cpp\\0.7.4\\windows-x64\\audiocpp_server.exe",
+    "devices_raw":  [
+                        "ggml_vulkan: Found 1 Vulkan devices:",
+                        "ggml_vulkan: 0 = AMD Radeon RX 580 2048SP (AMD proprietary driver) | uma: 0 | fp16: 0 | bf16: 0 | warp size: 64 | shared memory: 32768 | int dot: 0 | matrix cores: none",
+                        "available_devices=2",
+                        "Vulkan:0 \"AMD Radeon RX 580 2048SP\" [GPU]",
+                        "CPU:0 \"AMD Ryzen 5 5500                               \" [CPU]",
+                        "select with: --backend \u003ccuda|hip|vulkan|metal|cpu\u003e --device \u003cindex\u003e"
+                    ],
+    "vulkan_gpu":  true,
+    "vram_real_gb":  8,
+    "model_installed":  true,
+    "model_path":  null,
+    "engine_available":  true,
+    "engine_routing":  "accelerated",
+    "engine_reason":  null,
+    "generated":  true,
+    "http":  "200",
+    "gen_s":  90.45,
+    "audio_s":  8.32,
+    "rtf":  10.871,
+    "verdict":  "HTTP 200 com RTF=10.871. ATENCAO: esta requisicao passa pela API do app e a resposta nao diz qual motor a atendeu - se o engine audiocpp estivesse indisponivel, o app teria caido no motor ativo. Numero NAO atribuivel sem o passo [7d]."
+}
