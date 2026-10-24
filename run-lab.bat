@@ -666,6 +666,36 @@ if (Test-Cmd 'Get-NetTCPConnection') {
 
 $appInfo | ConvertTo-Json -Depth 5 | Out-File -FilePath (Join-Path $OutDir 'app.json') -Encoding UTF8
 
+# --- higiene antes de subir o app: servidor de inferencia orfao segura GBs
+# Um audiocpp_server filho de um app que ja morreu continua com os 4,7 GB de
+# pesos na RAM. Foi a causa provavel da coleta 190131 (0,92 GB livres e API que
+# nunca subiu). Se o app NAO esta rodando, esse processo e orfao por definicao.
+$orphans = @(Get-Process -Name 'audiocpp_server' -ErrorAction SilentlyContinue)
+if ($orphans.Count -gt 0) {
+    $appAlive = @(Get-Process -Name 'VoiceStudio' -ErrorAction SilentlyContinue).Count -gt 0
+    $heldMb = [int](($orphans | Measure-Object -Property WorkingSet64 -Sum).Sum / 1MB)
+    if (-not $appAlive) {
+        Write-Warn2 "$($orphans.Count) audiocpp_server orfao(s) segurando $heldMb MB (o app nao esta rodando)"
+        Write-Info 'encerrando processos orfaos para liberar memoria...'
+        foreach ($o in $orphans) { Stop-Process -Id $o.Id -Force -ErrorAction SilentlyContinue }
+        Start-Sleep -Seconds 2
+        $still = @(Get-Process -Name 'audiocpp_server' -ErrorAction SilentlyContinue).Count
+        if ($still -eq 0) { Write-Ok "memoria liberada (eram $heldMb MB)" }
+        else { Write-Warn2 "$still processo(s) resistiram ao encerramento" }
+    } else {
+        Write-Info "audiocpp_server em execucao ($heldMb MB) - o app esta aberto, nao mexo"
+    }
+}
+
+try {
+    $osNow = Get-CimInstance Win32_OperatingSystem
+    $freeMbNow = [int]($osNow.FreePhysicalMemory / 1KB)
+    Write-Info "memoria livre agora: $freeMbNow MB"
+    if ($freeMbNow -lt 2000) {
+        Write-Warn2 'menos de 2 GB livres: o backend do app pode nao subir. Feche navegador/outros apps.'
+    }
+} catch { }
+
 # ------------------------------------------------------ [4/10] instalar app
 Write-Step '4/10' 'Instalando o VoiceStudio'
 
