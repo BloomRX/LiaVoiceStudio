@@ -599,7 +599,63 @@ foi instrumentada para isso:
 **Lição registrada:** um coletor que espera 30 minutos sem coletar diagnóstico
 é um coletor que falha em silêncio. O próximo `/gpu` vai dizer *por que* falhou.
 
-### 5.3.1 A medição que falta: Vulkan e CPU na mesma balança
+### 5.3.1 A medição pareada: a placa PERDEU para a CPU
+
+Executada em 2026-10-23 19:52–20:06 (`evidence/windows/20261023-195256`).
+Mesmo binário `audiocpp_server.exe` v0.7.4, mesmo GGUF Q8_0, mesmo texto, mesmo
+seed 42, 1 aquecimento descartado e 3 medições por backend:
+
+| backend | RTF mediano | mínimo | máximo | áudio gerado |
+|---|---|---|---|---|
+| **Vulkan** (`--backend vulkan`, RX 580) | **7,740** | 7,425 | 7,908 | 8,16 s |
+| **CPU** (`--backend cpu`, Ryzen 5 5500, 8 threads) | **6,333** | 6,286 | 6,383 | 9,92 s |
+
+**A RX 580 é 22% mais lenta que o processador neste modelo.** Não é empate
+técnico: as três medições do Vulkan (7,425–7,908) ficam inteiramente acima de
+todas as três da CPU (6,286–6,383), sem sobreposição.
+
+Esta é a correção mais importante do relatório, e ela é contra a minha própria
+estimativa anterior. A §5.4 dizia "Vulkan, ganho típico 3–5× nesta placa → RTF
+5–9". **Estava errado**: o ganho medido é de **0,82×** — ou seja, uma
+*regressão* de 22%, não um ganho.
+
+**Por que a placa perdeu** — e isso não é especulação, é o que o próprio binário
+declara ao subir:
+
+```
+audio.cpp is optimized for CUDA. The vulkan server backend is intended for
+portability and testing, but performance and model coverage may be lower
+than CUDA.
+```
+
+O backend Vulkan do `audio.cpp` é declaradamente de **portabilidade**, não de
+desempenho. Somando ao que a enumeração da placa já mostrava:
+
+| Fator | Consequência |
+|---|---|
+| `fp16: 0` / `bf16: 0` | Polaris não armazena meia precisão → tudo em **fp32**, o dobro de banda por operação |
+| `matrix cores: none` | sem tensor cores; multiplicação de matriz vai para ALUs comuns |
+| `warp size: 64` | wavefront GCN largo, pior aproveitamento em cargas irregulares |
+| pesos **Q8_0** | a desquantização por multiplicação penaliza uma GPU sem fp16 e sem dot-product inteiro (`int dot: 0`) |
+| TTS autorregressivo | muitos passos pequenos: o custo de despachar trabalho para a GPU e sincronizar volta a comer o ganho |
+| Ryzen 5 5500 | AVX2, 6 núcleos físicos — o backend CPU do GGML é maduro e bem otimizado justamente nesse caminho |
+
+**Ressalva obrigatória sobre o seed:** o mesmo texto e o mesmo seed produziram
+áudios de **durações diferentes** — 8,16 s no Vulkan e 9,92 s na CPU (21% de
+diferença). O seed **não reproduz entre backends**, porque os kernels numéricos
+são outros. Consequências: (a) o RTF continua válido, porque é normalizado por
+segundo de áudio; (b) **não se pode tratar os dois WAVs como "o mesmo áudio"**
+numa comparação de qualidade; (c) qualquer teste A/B de voz precisa fixar um
+único backend.
+
+**O que isso muda na recomendação:** nada melhora para o lado da GPU, e o
+argumento fica mais forte. Antes a objeção era "não há modelo em português
+nesse runtime". Agora há uma segunda, independente e medida: **mesmo que
+houvesse, usá-lo nesta placa o deixaria mais lento.** O caminho Vulkan/AMD deixa
+de ser "fechado por idioma" e passa a ser "fechado por idioma **e** por
+desempenho".
+
+### 5.3.1b A medição que faltava antes: Vulkan e CPU na mesma balança
 
 O `/gpu` mediu **uma** requisição pela API, com carga de modelo e shaders dentro.
 Isso não permite dizer "a placa é mais rápida que o Ryzen" — a missão proíbe
@@ -615,57 +671,62 @@ essa frase sem medição pareada. Por isso o script ganhou o passo `[7d]`, que
 - RTF = parede ÷ duração; resultado em `gpu-paired.json` + WAVs
   `audio/gpu-paired-<backend>-r<N>.wav` para escuta.
 
-Por que isso importa mais do que o número do `[7c]`: se o ganho real for 3×, o RTF
-de um modelo em português cairia de 25,9 para ~8,6 — ainda 9× acima do tempo
-real. Se for 1,2×, o Vulkan nesta placa é ruído e a Fase D está encerrada **com
-número**. As duas respostas mudam a recomendação, e nenhuma delas pode ser
-adivinhada.
+Por que isso importa mais do que o número do `[7c]`: se o ganho real fosse 3×, o
+RTF de um modelo em português cairia de 25,9 para ~8,6 — ainda 9× acima do tempo
+real. Se fosse 1,2×, o Vulkan nesta placa seria ruído e a Fase D estaria
+encerrada **com número**. *(Escrito antes de medir — e a medição respondeu
+0,82×, pior que a pior hipótese considerada aqui. Ver §5.3.1.)*
 
-### 5.3.2 Uma armadilha do próprio app
+### 5.3.2 Correção de uma conclusão minha: o app **usa** o Vulkan sozinho
 
-`backend/engines/audiocpp/__init__.py` v0.5.6 declara:
+Na primeira leitura do código eu escrevi aqui que
+`backend/engines/audiocpp/__init__.py` declara `gpu_compat = ("cpu",)` e que,
+portanto, o app trataria este motor como CPU-only mesmo com a placa enumerada.
+**Isso estava errado, e a medição mostra por quê.**
 
-```python
-gpu_compat = ("cpu",)
-```
-
-Ou seja: **mesmo com Vulkan funcionando e enumerado**, o roteamento do app trata
-este motor como CPU-only e o servidor gerenciado sobe com `backend: "cpu"`. O
-`/engines/tts` confirma: `routing_status: cpu_fallback`.
-
-Existe contorno, e ele é por variável de ambiente, não por interface:
+Na coleta `20261023-195256`, com o runtime instalado, o `/engines/tts` passou a
+devolver:
 
 ```
-set OMNIVOICE_AUDIOCPP_BACKEND=vulkan
-set OMNIVOICE_AUDIOCPP_DEVICE=0
+audiocpp | available=true | effective_device=vulkan | gpu_compat=vulkan,cpu
+routing_status = accelerated
 ```
 
-(`resolve_compute_selection()` honra `OMNIVOICE_AUDIOCPP_BACKEND`/`_DEVICE`;
-`select_device()` aceita `vulkan` explicitamente.)
+O atributo de classe é apenas o **valor de fallback** usado quando
+`resolve_compute_selection()` falha. Quando o runtime existe, o perfil de
+computação é recalculado a partir de `runtime_targets()` e o motor reporta
+`vulkan`. Ou seja: **o app roteia para a GPU sem nenhuma variável de ambiente.**
 
-**Consequência para a avaliação:** alguém que instale este app, veja a RX 580
-enumerada e espere GPU no Breeze **não terá GPU** — a menos que descubra a
-variável. Isso é um item de ergonomia/documentação que vale registrar, mesmo que
-o motor não fale português.
+**Lição de método:** `gpu_compat = ("cpu",)` no código parecia uma decisão de
+produto; era um default defensivo. Ler o código sem ler o caminho de execução
+que o substitui produz uma conclusão errada — e aqui o custo seria acusar o app
+de um defeito que ele não tem.
 
 ### 5.4 Por que não vale insistir no Vulkan
 
-Mesmo se o binário GGML fosse compilado com backend Vulkan, a conta não fecha:
+A conta **não fecha — e agora nem na hipótese otimista**:
 
-| Cenário | RTF estimado | Fala de 10 s |
+| Cenário | RTF | Fala de 10 s |
 |---|---|---|
-| CPU (medido, OmniVoice pt) | 25,9 | 4,3 min |
-| Vulkan nesta placa (Breeze en, **medido** — não comparável, §5.2.1) | 11,6 | ~1,9 min |
-| Vulkan, ganho típico 3–5× sobre o mesmo modelo | 5–9 | 50–90 s |
+| CPU (medido, OmniVoice pt, PyTorch) | 25,9 | 4,3 min |
+| CPU (medido, Breeze-TTS-2 en, GGML, 8 threads) | 6,333 | 63 s |
+| **Vulkan nesta placa** (medido, mesmo Breeze, mesma máquina) | **7,740** | 77 s |
 | Necessário para conversa | **< 1** | < 10 s |
 
-Para uso conversacional seria preciso **~26×** de ganho. Nenhuma GPU Polaris
-entrega isso em decode de TTS — e a RX 580 é de 2017, com **8 GB** (a VRAM não é
-o limite aqui; 8 GB comportam o modelo com folga).
+A linha que eu havia **estimado** ("Vulkan, ganho típico 3–5× → RTF 5–9") não
+existe: medidas pareadas dão **0,82×**, isto é, a GPU é **mais lenta**. Não é
+falta de VRAM (a placa tem 8 GB e o modelo Q8_0 ocupa 4,73 GiB) nem falta de
+driver (Vulkan 1.3.250 enumera a placa). É arquitetura: Polaris sem fp16, sem
+tensor cores, e um backend Vulkan que o próprio fornecedor classifica como
+"portability and testing".
 
-Vulkan mudaria "4,3 min" para "1 min". É uma melhora real para **geração em
-lote**, e irrelevante para **conversa**. Como o caso de uso da Lia é
-conversacional, o investimento (compilar toolchain C++ no Windows) não se paga.
+Mesmo que a GPU fosse 3× mais rápida, ainda faltaria ~9× para tempo real. Com o
+ganho real de 0,82×, **faltam 26× e a placa empurra na direção contrária**.
+
+Vulkan mudaria "4,3 min" para "5,3 min". Não é melhora para **lote** nem para
+**conversa**: é pior nos dois casos. Como o caso de uso da Lia é conversacional,
+o caminho está encerrado **com número**, e a alegação de que "valeria a pena
+para geração em lote" — que eu fiz antes de medir — **também cai**.
 
 ### 5.3 Protocolo de medição (3+ gerações, primeira separada)
 
@@ -851,7 +912,7 @@ implementação, conforme exigido.
 | A — investigação estática | **Alta** | INSPECIONADO / TESTADO (estático) |
 | B — instalação | **Alta** | ✅ TESTADO na máquina real (v0.5.6, 214.447.484 B, sha256 fixado) |
 | C — qualidade de voz | **Média** | 10 frases geradas + análise acústica (§4.4); **audição humana PENDENTE** |
-| D — AMD/Vulkan | **Alta** | ✅ RTF 25,9 em CPU · GGUF ausente · **Vulkan enumera a RX 580 e gera áudio** · pareado Vulkan×CPU **PENDENTE** (`[7d]`) |
+| D — AMD/Vulkan | **Alta** | ✅ RTF 25,9 em CPU (OmniVoice) · GGUF ausente · Vulkan enumera a placa **e** foi medido pareado: **GPU 22% mais lenta** que a CPU |
 | E — API | **Alta** (código **e** runtime) | ✅ TESTADO — backend exercitado por HTTP |
 | F — licenças | **Alta** | ✅ INSPECIONADO + confirmado em runtime |
 | G — integração | **Análise** | — |

@@ -75,7 +75,7 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 | A — investigação estática | ✅ executada |
 | B — instalação | ✅ app + modelo + 1 WAV gerado (falta fechar/reabrir) |
 | C — qualidade de voz | 🟡 10 amostras geradas + análise acústica objetiva; falta ouvinte humano |
-| D — AMD / Vulkan | ✅ **RTF 25,9** em CPU (OmniVoice) e **Vulkan funcionando** na RX 580 (audio.cpp/Breeze, en). Pareado Vulkan×CPU pendente |
+| D — AMD / Vulkan | ✅ **RTF 25,9** em CPU (OmniVoice). Vulkan funciona na RX 580, mas medido pareado é **22% mais lento** que a CPU |
 | E — API local | ✅ testada em runtime (Linux/CPU) |
 | F — licenças | ✅ executada |
 | G — integração | ✅ análise, sem implementação |
@@ -84,9 +84,11 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 
 ## Os três achados que decidem a questão
 
-1. **O caminho Vulkan/AMD funciona — mas só fala inglês e chinês.** `audio.cpp` +
-   Breeze-TTS-2 tem build Vulkan para Windows e o VoiceStudio o fixa com SHA-256,
-   porém `supported_languages == ["en","zh"]`.
+1. **O caminho Vulkan/AMD funciona, não fala português e é mais lento que a
+   CPU.** `audio.cpp` + Breeze-TTS-2 tem build Vulkan para Windows, o app o fixa
+   com SHA-256 e a RX 580 é enumerada (`Vulkan:0`). Mas `supported_languages ==
+   ["en","zh"]` e, medido no mesmo modelo, o RTF é 7,74 na GPU contra 6,33 na
+   CPU — **22% mais devagar**.
 
 2. **No Windows com Radeon, tudo que fala português roda em CPU.** PyTorch no
    Windows é CUDA-only; ROCm é Linux-only; DirectML não é viável.

@@ -331,23 +331,28 @@ preencher a grade de `test-matrix.md` §4.2.
 
 > ### 🔴 **NÃO RECOMENDADO**
 
-**Por quê:** dois motivos independentes, cada um suficiente.
+**Por quê:** três motivos independentes, cada um suficiente.
 
 1. **Não fala português.** `supported_languages == ["en","zh"]`, confirmado no
    código e no card do modelo.
 2. **Licença Research/Non-Commercial cobrindo explicitamente os outputs
    self-hosted** — sem a zona cinzenta que o OmniVoice tem.
+3. **É mais lento que a CPU nesta máquina** — medido, não estimado: RTF 7,740 no
+   Vulkan contra 6,333 na CPU, mesmo binário e mesmo modelo (§ acima,
+   `test-matrix.md` §5.3.1).
 
 Some-se: o VoiceStudio fixa `audio.cpp` **v0.7.4** enquanto o upstream está em
 **v0.9.2** — defasagem relevante para um runtime que evolui rápido.
 
 **Conclusão da Fase D:** a pergunta "Vulkan serve para o nosso caso?" tem
-resposta negativa por dois motivos independentes (idioma e licença), e a placa
-não muda isso.
+resposta negativa por **três** motivos independentes, todos medidos ou
+verificados: **(1)** idioma (só en/zh); **(2)** licença research/non-commercial
+cobrindo outputs; **(3)** desempenho — a placa é **22% mais lenta** que o Ryzen
+no mesmo modelo (`test-matrix.md` §5.3.1).
 
-**Mas o "não recomendado" precisa ser exato sobre o que foi medido.** Em
+**O "não recomendado" precisa ser exato sobre o que foi medido.** Em
 2026-10-23 o `/gpu` rodou e o resultado foi afirmativo onde todos esperavam
-negativo:
+negativo — **a placa funciona**:
 
 ```
 Vulkan:0 "AMD Radeon RX 580 2048SP" [GPU]
@@ -366,17 +371,51 @@ Duas armadilhas registradas na ocasião:
   `audiocpp`: o roteamento o trata como CPU-only mesmo com Vulkan enumerado.
   Usar a GPU exige `OMNIVOICE_AUDIOCPP_BACKEND=vulkan`.
 - **A placa não tem fp16.** O backend reporta `fp16: 0 | bf16: 0 | matrix cores:
-  none | warp size: 64` — tudo roda em fp32, sem tensor cores. É por isso que
-  esperar 26× de ganho dela seria fantasia; 3–5× é o teto realista.
+  none | warp size: 64` — tudo roda em fp32, sem tensor cores.
+- **"Funciona" não é "ajuda".** Medida contra o próprio processador, no mesmo
+  modelo, a placa é **22% mais lenta** (§ acima). O app **usa** o Vulkan sozinho
+  quando o runtime está instalado (`effective_device=vulkan`,
+  `routing_status=accelerated`) — eu havia dito o contrário lendo só o atributo
+  de classe `gpu_compat`, e essa conclusão foi corrigida em
+  `test-matrix.md` §5.3.2.
 
-**O que ainda não foi medido, e por quê.** A tentativa de repetir o teste
-(`20261023-190131`) não mediu nada: o app não expôs a API em 30 minutos, com
-**0,92 GB de RAM livre** de 15,89 GB. Provavelmente um `audiocpp_server` órfão da
-execução anterior segurando os 4,7 GB de pesos — mas a coleta não prova isso,
-então fica como hipótese. O coletor foi corrigido para (a) medir a placa **sem
-passar pela API** quando o runtime já está no disco e (b) diagnosticar a falha
-em 2 minutos em vez de 30. **A medição pareada Vulkan × CPU continua
-PENDENTE** — e é dela que depende dizer se a placa vale algo em número.
+**E a medição pareada existe — ela desmente a expectativa.** Execução
+`20261023-195256`, mesmo binário, mesmo GGUF Q8_0, mesmo texto, mesmo seed, 1
+aquecimento descartado e 3 medições por backend:
+
+| backend | RTF mediano | faixa |
+|---|---|---|
+| **Vulkan** — RX 580 | **7,740** | 7,425 – 7,908 |
+| **CPU** — Ryzen 5 5500, 8 threads | **6,333** | 6,286 – 6,383 |
+
+**A RX 580 é 22% mais lenta que o processador.** As três medições da GPU ficam
+inteiramente acima das três da CPU — não há sobreposição, não é ruído.
+
+Eu havia estimado "Vulkan típico 3–5× de ganho nesta placa". **A estimativa
+estava errada, e o erro era meu.** O ganho medido é **0,82×**: uma regressão.
+O próprio binário declara o motivo ao subir:
+
+```
+audio.cpp is optimized for CUDA. The vulkan server backend is intended for
+portability and testing, but performance and model coverage may be lower
+than CUDA.
+```
+
+Somado ao que a enumeração já mostrava — `fp16: 0`, `bf16: 0`, `matrix cores:
+none`, `warp size: 64` — e ao fato de os pesos serem Q8_0 (desquantização por
+multiplicação, sem dot-product inteiro), o resultado deixa de ser surpresa: é o
+esperado para uma GCN de 2017 rodando um backend declaradamente de
+portabilidade.
+
+**Ressalva registrada:** o mesmo texto e o mesmo seed produziram áudios de
+durações diferentes — 8,16 s no Vulkan, 9,92 s na CPU. O seed **não reproduz
+entre backends**. O RTF continua válido (é normalizado por segundo de áudio),
+mas os dois WAVs não podem ser tratados como "o mesmo áudio" num teste de
+qualidade.
+
+**Consequência:** o caminho Vulkan/AMD não está fechado só por idioma. Ele está
+fechado por idioma **e** por desempenho — e a segunda razão é um número, não um
+argumento.
 
 **Correção de fato (operador, 2026-10-23):** a RX 580 tem **8 GB de VRAM**, não
 4. O valor de 4 GB era saturação do `AdapterRAM` do WMI. Isso derruba o
@@ -473,9 +512,11 @@ O caminho de menor risco, na ordem:
 3. **Se houver intenção comercial:** resolver a §2 antes de escrever código.
    Provavelmente significa VoxCPM2/CosyVoice em vez de OmniVoice — o que exige
    nova rodada de teste de qualidade.
-4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende — não por
-   falta de VRAM (a placa tem 8 GB), mas por não existir modelo em português
-   nesse runtime.
+4. **Descartar o caminho Vulkan/AMD** para português. Ele não atende por três
+   razões medidas: não há modelo em português nesse runtime, a licença do que
+   existe é research/non-commercial, e a placa é **22% mais lenta** que o
+   processador no próprio modelo que ela roda. Não é falta de VRAM (8 GB,
+   modelo de 4,73 GiB) nem de driver (Vulkan 1.3.250 enumera a placa).
 
 **Desempenho — agora medido, não estimado:** no hardware-alvo a inferência é em
 **CPU**, com **RTF 25,9** (26 s de processamento por segundo de fala). Para a

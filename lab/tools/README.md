@@ -143,6 +143,21 @@ roda sozinho no mesmo `/gpu` quando o runtime e o modelo já estão instalados:
 nesta placa". O `[7c]` responde *se a placa funciona*; o `[7d]` responde
 *quanto ela vale*.
 
+**Resultado medido (2026-10-23, `20261023-195256`):**
+
+```
+[vulkan] RTF mediano 7.740  (7.425 - 7.908)
+[cpu]    RTF mediano 6.333  (6.286 - 6.383)
+=> a placa e MAIS LENTA que a CPU: 1.22 x mais devagar
+```
+
+O próprio binário explica: *"audio.cpp is optimized for CUDA. The vulkan server
+backend is intended for portability and testing, but performance and model
+coverage may be lower than CUDA."*
+
+O script agora avisa no começo do `[7d]` que são 8 requisições de ~60 s (8–12
+min, não é travamento) e mostra o tempo decorrido em cada passo (`t+X min`).
+
 ### O único clique que não dá para automatizar
 
 Na **primeira** execução o VoiceStudio abre uma tela **"Instalar ambiente local"**

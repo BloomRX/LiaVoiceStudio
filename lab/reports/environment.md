@@ -137,6 +137,18 @@ inferência: o binário que o app instala enumerou a placa
 Breeze-TTS-2. O loader é 1.3.250 e a RX 580 tem suporte Vulkan maduro no driver
 Adrenalin, mas o que prova o caminho é o teste, não o driver.
 
+**Funcionar não significa acelerar.** Medição pareada de 2026-10-23
+(`test-matrix.md` §5.3.1), mesmo binário e mesmo GGUF:
+
+| backend | RTF mediano |
+|---|---|
+| Vulkan (RX 580) | 7,740 |
+| CPU (Ryzen 5 5500, 8 threads) | **6,333** |
+
+A GPU é **22% mais lenta**. `fp16: 0`, `bf16: 0`, `matrix cores: none` e pesos
+Q8_0 explicam: a placa faz tudo em fp32, sem tensor cores e sem dot-product
+inteiro, enquanto o backend CPU do GGML usa AVX2 em 6 núcleos.
+
 O problema é o de sempre: **o único motor que usa Vulkan (Breeze-TTS-2) só fala
 inglês e chinês.**
 

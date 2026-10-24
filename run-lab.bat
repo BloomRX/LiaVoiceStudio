@@ -213,7 +213,10 @@ if not "%RC%"=="0" (
 
 if not defined NOPAUSE (
     echo.
-    pause
+    echo  Esta janela fecha sozinha em 60 segundos.
+    echo  (use /nopause para fechar imediatamente ao terminar)
+    echo.
+    timeout /t 60
 )
 exit /b %RC%
 #<PS_BEGIN>
@@ -312,6 +315,7 @@ $CsvPath  = Join-Path $OutDir 'measurements.csv'
 
 New-Item -ItemType Directory -Force -Path $OutDir, $ApiDir, $AudioDir | Out-Null
 
+$script:StartedAt = Get-Date
 $script:Problems = New-Object System.Collections.ArrayList
 $script:Steps    = New-Object System.Collections.ArrayList
 $script:Rows     = New-Object System.Collections.ArrayList
@@ -320,7 +324,9 @@ $script:Rows     = New-Object System.Collections.ArrayList
 function Write-Step {
     param([string]$Id, [string]$Text)
     Write-Host ""
-    Write-Host "[$Id] $Text" -ForegroundColor Cyan
+    # o tempo decorrido em cada passo evita a sensacao de travamento
+    $el = [math]::Round(((Get-Date) - $script:StartedAt).TotalMinutes, 1)
+    Write-Host "[$Id] $Text  (t+$el min)" -ForegroundColor Cyan
     [void]$script:Steps.Add("$Id $Text")
 }
 function Write-Ok   { param([string]$m) Write-Host "     OK    $m" -ForegroundColor Green }
@@ -1568,6 +1574,7 @@ if ($Gpu) {
 $gpuPair = $null
 if ($Gpu -and $gpuTest -and $gpuTest.server_exe) {
     Write-Step '7d' 'Vulkan vs CPU (medicao pareada)'
+    Write-Info '8 requisicoes (2 aquecimentos + 6 medicoes), ~60 s cada: 8-12 min. Nao e travamento.'
 
     function Get-WavInfo {
         param([byte[]]$Bytes)
@@ -1636,7 +1643,9 @@ if ($Gpu -and $gpuTest -and $gpuTest.server_exe) {
             runs_measured = 3
             warmup_runs   = 1
             backends      = [ordered]@{}
-            speedup_cpu_over_vulkan = $null
+            vulkan_gain_vs_cpu = $null
+            cpu_faster    = $null
+            audio_length_mismatch = $null
             verdict       = ''
         }
 
@@ -1745,9 +1754,32 @@ if ($Gpu -and $gpuTest -and $gpuTest.server_exe) {
         $vRec = $gpuPair.backends['vulkan']
         $cRec = $gpuPair.backends['cpu']
         if ($vRec.rtf_median -and $cRec.rtf_median -and $vRec.rtf_median -gt 0) {
-            $gpuPair.speedup_cpu_over_vulkan = [math]::Round($cRec.rtf_median / $vRec.rtf_median, 2)
-            $gpuPair.verdict = "Mesmo binario e modelo: Vulkan RTF $($vRec.rtf_median), CPU RTF $($cRec.rtf_median). A placa e $($gpuPair.speedup_cpu_over_vulkan)x mais rapida em ingles."
-            Write-Ok $gpuPair.verdict
+            # RTF = tempo/audio: MENOR e mais rapido. Entao
+            #   ganho = RTF da CPU / RTF da GPU
+            # > 1 => a placa ganha; < 1 => a placa PERDE (fica mais lenta).
+            $gain = [math]::Round($cRec.rtf_median / $vRec.rtf_median, 2)
+            $gpuPair.vulkan_gain_vs_cpu = $gain
+            $gpuPair.cpu_faster = ($gain -lt 1)
+            if ($gain -gt 1.05) {
+                $gpuPair.verdict = "Mesmo binario e modelo: Vulkan RTF $($vRec.rtf_median) x CPU RTF $($cRec.rtf_median). A placa e $($gain)x MAIS RAPIDA."
+                Write-Ok $gpuPair.verdict
+            } elseif ($gain -lt 0.95) {
+                $inv = [math]::Round(1 / $gain, 2)
+                $gpuPair.verdict = "Mesmo binario e modelo: Vulkan RTF $($vRec.rtf_median) x CPU RTF $($cRec.rtf_median). A placa e MAIS LENTA que a CPU: $inv x mais devagar. Use CPU."
+                Write-Warn2 $gpuPair.verdict
+            } else {
+                $gpuPair.verdict = "Mesmo binario e modelo: Vulkan RTF $($vRec.rtf_median) x CPU RTF $($cRec.rtf_median). Empate tecnico (dentro de 5%)."
+                Write-Info $gpuPair.verdict
+            }
+            # duracao do audio deve ser a mesma se o seed reproduzisse entre backends
+            if ($vRec.requests.Count -gt 1 -and $cRec.requests.Count -gt 1) {
+                $dv = $vRec.requests[1].audio_s
+                $dc = $cRec.requests[1].audio_s
+                if ($dv -and $dc -and $dc -gt 0 -and [math]::Abs($dv - $dc) / $dc -gt 0.02) {
+                    $gpuPair.audio_length_mismatch = $true
+                    Write-Warn2 ("ATENCAO: o mesmo texto e seed geraram duracoes diferentes ({0}s no Vulkan, {1}s na CPU). O seed NAO reproduz entre backends - nao compare os WAVs como se fossem o mesmo audio." -f $dv, $dc)
+                }
+            }
         } elseif ($vRec.rtf_median) {
             $gpuPair.verdict = "Vulkan mediu RTF $($vRec.rtf_median), mas o lado CPU nao completou - sem comparacao."
             Write-Warn2 $gpuPair.verdict
@@ -1967,7 +1999,14 @@ if ($Gpu -and $gpuPair) {
         if ($r) { Add-Line "| $bk | $($r.rtf_median) | $($r.rtf_min) | $($r.rtf_max) |" }
     }
     Add-Line ""
-    if ($gpuPair.speedup_cpu_over_vulkan) { Add-Line "- **Ganho da placa: $($gpuPair.speedup_cpu_over_vulkan)x** (CPU/Vulkan, mesmo modelo)" }
+    if ($gpuPair.vulkan_gain_vs_cpu) {
+        if ($gpuPair.cpu_faster) {
+            Add-Line "- **A CPU ganhou**: Vulkan e $([math]::Round(1 / $gpuPair.vulkan_gain_vs_cpu, 2))x mais LENTO que o Ryzen 5 5500 neste modelo."
+        } else {
+            Add-Line "- **Ganho da placa: $($gpuPair.vulkan_gain_vs_cpu)x** (RTF da CPU / RTF do Vulkan)"
+        }
+    }
+    if ($gpuPair.audio_length_mismatch) { Add-Line "- Ressalva: o mesmo texto+seed deu duracoes diferentes por backend - o seed nao reproduz entre backends." }
     Add-Line "- Veredito: $($gpuPair.verdict)"
     Add-Line "- `gpu-paired.json` - medicoes por requisicao; WAVs em ``audio/gpu-paired-*``"
 }
@@ -2090,7 +2129,8 @@ if ($NoGit -or -not $isRepo) {
 # ---------------------------------------------------------------- final
 Write-Host ""
 Write-Host "================================================================" -ForegroundColor White
-Write-Host " Concluido em $(Get-Date -Format 'HH:mm:ss')" -ForegroundColor White
+$elapsed = [math]::Round(((Get-Date) - $script:StartedAt).TotalMinutes, 1)
+Write-Host " Concluido em $(Get-Date -Format 'HH:mm:ss') (levou $elapsed min)" -ForegroundColor White
 Write-Host " Pasta: $OutDir" -ForegroundColor White
 if ($script:Problems.Count -gt 0) {
     Write-Host " $($script:Problems.Count) aviso(s)/falha(s) - veja summary.md" -ForegroundColor Yellow
