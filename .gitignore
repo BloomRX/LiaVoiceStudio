@@ -11,3 +11,9 @@ __pycache__/
 
 # NUNCA ignorar lab/reports/ — os relatorios e as evidencias sao o entregavel.
 # Inclusive lab/reports/evidence/windows/**, que o run-lab.bat gera.
+
+# Estado local de agentes (regras compartilhadas .claude/rules podem ser versionadas)
+.claude/skills/
+.claude/worktrees/
+.claude/settings.local.json
+CLAUDE.local.md

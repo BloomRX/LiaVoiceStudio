@@ -106,3 +106,8 @@ terceiros) e `lab/venv/` (ambiente Python). Ambas são reproduzíveis.
 - Nenhuma voz de terceiro sem consentimento.
 - Números ausentes nos relatórios estão ausentes **porque não foram medidos**.
   Onde não há medição, está escrito **NÃO TESTADO**.
+
+
+## Padrão da marca e execução segura
+
+Consulte [`docs/BRAND-STANDARDS.md`](docs/BRAND-STANDARDS.md) e siga [`AGENTS.md`](AGENTS.md) antes de rodar o laboratório. O script `run-lab.bat` pode instalar software, baixar modelos, gerar áudio e fazer push; sua execução exige autorização explícita.
